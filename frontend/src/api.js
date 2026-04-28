@@ -47,6 +47,9 @@ export const api = {
     request('/api/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } }),
   listUsers: () => request('/api/auth/users'),
   createUser: (payload) => request('/api/auth/users', { method: 'POST', body: payload }),
+  updateUser: (id, payload) =>
+    request(`/api/auth/users/${id}`, { method: 'PATCH', body: payload }),
+  deleteUser: (id) => request(`/api/auth/users/${id}`, { method: 'DELETE' }),
 
   listOrders: (params) => request('/api/orders', { params }),
   createOrder: (payload) => request('/api/orders', { method: 'POST', body: payload }),

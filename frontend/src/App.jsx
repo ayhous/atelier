@@ -5,8 +5,10 @@ import { buildZPL, printLabelHTML } from './label.js';
 import Login from './Login.jsx';
 
 const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
+const ORDER_TYPES = ['Zone 53', 'Proforma'];
 
 const emptyForm = {
+  type: 'Zone 53',
   orderNumber: '',
   client: '',
   cartonType: 'Moyen',
@@ -23,6 +25,7 @@ export default function App() {
     localStorage.getItem(AUTO_PRINT_KEY) !== 'false'
   );
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [sortBy, setSortBy] = useState({ key: 'created_at', dir: 'desc' });
   const [editingNoteId, setEditingNoteId] = useState(null);
@@ -58,13 +61,14 @@ export default function App() {
       const { order } = await api.createOrder(form);
       if (autoPrint) {
         printLabelHTML({
+          type: order.order_type,
           client: order.client,
           orderNumber: order.order_number,
           createdBy: order.created_by,
           createdAt: order.created_at,
         });
       }
-      setForm({ ...emptyForm });
+      setForm({ ...emptyForm, type: form.type });
       await refresh();
       document.querySelector('input[name=orderNumber]')?.focus();
     } catch (err) {
@@ -107,6 +111,7 @@ export default function App() {
 
   function generateLabel(o) {
     setZplPreview(buildZPL({
+      type: o.order_type,
       client: o.client,
       orderNumber: o.order_number,
       createdBy: o.created_by,
@@ -121,8 +126,9 @@ export default function App() {
         (o.order_number || '').toLowerCase().includes(q) ||
         (o.client || '').toLowerCase().includes(q) ||
         (o.created_by || '').toLowerCase().includes(q);
+      const matchType = !typeFilter || o.order_type === typeFilter;
       const matchDate = !dateFilter || (o.created_at || '').startsWith(dateFilter);
-      return matchSearch && matchDate;
+      return matchSearch && matchType && matchDate;
     });
     list.sort((a, b) => {
       const av = a[sortBy.key] ?? '';
@@ -131,7 +137,7 @@ export default function App() {
       return sortBy.dir === 'asc' ? cmp : -cmp;
     });
     return list;
-  }, [orders, search, dateFilter, sortBy]);
+  }, [orders, search, typeFilter, dateFilter, sortBy]);
 
   function toggleSort(key) {
     setSortBy(prev =>
@@ -164,6 +170,20 @@ export default function App() {
         <section className="form">
           <h2>Nouvelle commande</h2>
           <form onSubmit={addOrder}>
+            <div className="type-selector full">
+              <span className="label-small">Type</span>
+              <div className="type-buttons">
+                {ORDER_TYPES.map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`type-btn ${form.type === t ? 'active' : ''}`}
+                    onClick={() => update('type', t)}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+
             <label className="full">N° commande *
               <input
                 name="orderNumber"
@@ -206,6 +226,10 @@ export default function App() {
               placeholder="Rechercher (commande, client, utilisateur)…"
               value={search} onChange={e => setSearch(e.target.value)}
             />
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+              <option value="">Tous types</option>
+              {ORDER_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
             <input type="date" value={dateFilter}
               onChange={e => setDateFilter(e.target.value)} />
             <span className="count">{filtered.length} / {orders.length}</span>
@@ -217,6 +241,7 @@ export default function App() {
                 <tr>
                   {[
                     ['created_at', 'Date'],
+                    ['order_type', 'Type'],
                     ['order_number', 'Commande'],
                     ['client', 'Client'],
                     ['carton_type', 'Carton'],
@@ -234,6 +259,11 @@ export default function App() {
                 {filtered.map(o => (
                   <tr key={o.id}>
                     <td>{formatDate(o.created_at)}</td>
+                    <td>
+                      <span className={`type-badge type-${(o.order_type || '').replace(/\s+/g, '').toLowerCase()}`}>
+                        {o.order_type || 'Zone 53'}
+                      </span>
+                    </td>
                     <td><b>{o.order_number}</b></td>
                     <td>{o.client}</td>
                     <td>{o.carton_type}</td>
@@ -256,6 +286,7 @@ export default function App() {
                     </td>
                     <td className="row-actions">
                       <button onClick={() => printLabelHTML({
+                        type: o.order_type,
                         client: o.client,
                         orderNumber: o.order_number,
                         createdBy: o.created_by,
@@ -266,7 +297,7 @@ export default function App() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan="7" className="empty">Aucune commande</td></tr>
+                  <tr><td colSpan="8" className="empty">Aucune commande</td></tr>
                 )}
               </tbody>
             </table>
@@ -284,68 +315,188 @@ export default function App() {
           </section>
         )}
 
-        {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+        {showAdmin && (
+          <AdminPanel
+            currentUserId={user.id}
+            onClose={() => setShowAdmin(false)}
+          />
+        )}
       </main>
     </div>
   );
 }
 
-function AdminPanel({ onClose }) {
+const emptyUserForm = {
+  username: '', password: '', displayName: '', role: 'user',
+};
+
+function AdminPanel({ onClose, currentUserId }) {
   const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({
-    username: '', password: '', displayName: '', role: 'user',
-  });
+  const [form, setForm] = useState(emptyUserForm);
+  const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => { load(); }, []);
-  async function load() {
-    try { const { users } = await api.listUsers(); setUsers(users); }
-    catch (e) { setError(e.message); }
-  }
 
-  async function create(e) {
-    e.preventDefault();
-    setError('');
+  async function load() {
     try {
-      await api.createUser(form);
-      setForm({ username: '', password: '', displayName: '', role: 'user' });
-      await load();
+      const { users } = await api.listUsers();
+      setUsers(users);
     } catch (e) { setError(e.message); }
   }
 
+  function startEdit(u) {
+    setEditingId(u.id);
+    setForm({
+      username: u.username,
+      password: '',
+      displayName: u.display_name,
+      role: u.role,
+    });
+    setError('');
+    document.querySelector('.user-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setForm(emptyUserForm);
+    setError('');
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      if (editingId) {
+        const payload = {
+          username: form.username,
+          displayName: form.displayName,
+          role: form.role,
+        };
+        if (form.password) payload.password = form.password;
+        await api.updateUser(editingId, payload);
+      } else {
+        if (!form.username || !form.password || !form.displayName) {
+          throw new Error('Tous les champs sont obligatoires pour un nouveau compte');
+        }
+        await api.createUser(form);
+      }
+      cancelEdit();
+      await load();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function remove(u) {
+    if (!confirm(`Supprimer définitivement ${u.username} ?`)) return;
+    try {
+      await api.deleteUser(u.id);
+      if (editingId === u.id) cancelEdit();
+      await load();
+    } catch (e) { alert(e.message); }
+  }
+
+  const isEdit = !!editingId;
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <header>
-          <h3>Utilisateurs</h3>
+      <div className="modal modal-large" onClick={e => e.stopPropagation()}>
+        <header className="modal-header">
+          <h3>Gestion des utilisateurs</h3>
           <button className="ghost" onClick={onClose}>Fermer</button>
         </header>
-        <form className="user-form" onSubmit={create}>
-          <input placeholder="Login" value={form.username}
-            onChange={e => setForm({ ...form, username: e.target.value })} />
-          <input placeholder="Mot de passe" type="password" value={form.password}
-            onChange={e => setForm({ ...form, password: e.target.value })} />
-          <input placeholder="Nom complet" value={form.displayName}
-            onChange={e => setForm({ ...form, displayName: e.target.value })} />
-          <select value={form.role}
-            onChange={e => setForm({ ...form, role: e.target.value })}>
-            <option value="user">user</option>
-            <option value="admin">admin</option>
-          </select>
-          <button className="primary" type="submit">Créer</button>
-        </form>
-        {error && <div className="error">{error}</div>}
-        <table>
+
+        <div className="user-form-card">
+          <div className="user-form-title">
+            {isEdit
+              ? <>✏️ Modification — <b>{users.find(u => u.id === editingId)?.username}</b></>
+              : <>➕ Nouveau compte</>}
+          </div>
+
+          <form onSubmit={submit} className="user-form-grid">
+            <label>
+              <span>Login</span>
+              <input
+                value={form.username}
+                onChange={e => setForm({ ...form, username: e.target.value })}
+                disabled={isEdit && editingId === currentUserId}
+                placeholder="login"
+              />
+            </label>
+            <label>
+              <span>Nom complet</span>
+              <input
+                value={form.displayName}
+                onChange={e => setForm({ ...form, displayName: e.target.value })}
+                placeholder="Prénom Nom"
+              />
+            </label>
+            <label>
+              <span>Rôle</span>
+              <select
+                value={form.role}
+                onChange={e => setForm({ ...form, role: e.target.value })}
+                disabled={isEdit && editingId === currentUserId}
+              >
+                <option value="user">Utilisateur</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <label>
+              <span>{isEdit ? 'Nouveau mot de passe (optionnel)' : 'Mot de passe'}</span>
+              <input
+                type="password"
+                value={form.password}
+                onChange={e => setForm({ ...form, password: e.target.value })}
+                placeholder={isEdit ? '(laisser vide pour ne pas changer)' : 'min 6 caractères'}
+              />
+            </label>
+
+            {error && <div className="error full">{error}</div>}
+
+            <div className="user-form-actions full">
+              <button type="submit" className="primary" disabled={busy}>
+                {busy ? '…' : isEdit ? 'Enregistrer les modifications' : 'Créer le compte'}
+              </button>
+              {isEdit && (
+                <button type="button" className="ghost" onClick={cancelEdit}>
+                  Annuler
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+
+        <h4 className="users-list-title">Comptes existants ({users.length})</h4>
+        <table className="users-table">
           <thead>
-            <tr><th>Login</th><th>Nom</th><th>Rôle</th><th>Créé</th></tr>
+            <tr>
+              <th>Login</th>
+              <th>Nom complet</th>
+              <th>Rôle</th>
+              <th>Créé le</th>
+              <th>Actions</th>
+            </tr>
           </thead>
           <tbody>
             {users.map(u => (
-              <tr key={u.id}>
-                <td>{u.username}</td>
+              <tr key={u.id} className={editingId === u.id ? 'editing' : ''}>
+                <td><b>{u.username}</b>{u.id === currentUserId && <span className="self-tag">vous</span>}</td>
                 <td>{u.display_name}</td>
-                <td>{u.role}</td>
-                <td>{u.created_at}</td>
+                <td>
+                  <span className={`role-badge role-${u.role}`}>
+                    {u.role}
+                  </span>
+                </td>
+                <td>{formatDate(u.created_at)}</td>
+                <td className="row-actions">
+                  <button onClick={() => startEdit(u)}>Modifier</button>
+                  {u.id !== currentUserId && (
+                    <button className="danger" onClick={() => remove(u)}>Supprimer</button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

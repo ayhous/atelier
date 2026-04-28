@@ -54,6 +54,57 @@ router.post('/users', authRequired, adminOnly, (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
+router.patch('/users/:id', authRequired, adminOnly, (req, res) => {
+  const id = Number(req.params.id);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+  if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
+
+  const { username, displayName, role, password } = req.body || {};
+  const updates = [];
+  const params = { id };
+
+  if (username && username !== user.username) {
+    const exists = db.prepare('SELECT id FROM users WHERE username = ? AND id != ?').get(username, id);
+    if (exists) return res.status(409).json({ error: 'Login déjà utilisé' });
+    updates.push('username = @username');
+    params.username = username;
+  }
+  if (displayName) {
+    updates.push('display_name = @displayName');
+    params.displayName = displayName;
+  }
+  if (role && (role === 'admin' || role === 'user')) {
+    if (id === req.user.id && role !== 'admin') {
+      return res.status(400).json({ error: 'Vous ne pouvez pas retirer votre propre rôle admin' });
+    }
+    updates.push('role = @role');
+    params.role = role;
+  }
+  if (password) {
+    if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (min 6)' });
+    updates.push('password_hash = @hash');
+    params.hash = bcrypt.hashSync(password, 10);
+  }
+
+  if (!updates.length) return res.json({ user });
+
+  db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = @id`).run(params);
+  const updated = db.prepare(
+    'SELECT id, username, display_name, role, created_at FROM users WHERE id = ?'
+  ).get(id);
+  res.json({ user: updated });
+});
+
+router.delete('/users/:id', authRequired, adminOnly, (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.user.id) {
+    return res.status(400).json({ error: 'Vous ne pouvez pas supprimer votre propre compte' });
+  }
+  const result = db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  if (!result.changes) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  res.json({ ok: true });
+});
+
 router.post('/change-password', authRequired, (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
   if (!oldPassword || !newPassword || newPassword.length < 6) {

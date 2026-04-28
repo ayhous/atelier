@@ -6,8 +6,10 @@ import { authRequired } from '../middleware/auth.js';
 const router = Router();
 router.use(authRequired);
 
+const VALID_TYPES = ['Zone 53', 'Proforma'];
+
 router.get('/', (req, res) => {
-  const { search, date } = req.query;
+  const { search, date, type } = req.query;
   const filters = [];
   const params = {};
 
@@ -17,6 +19,7 @@ router.get('/', (req, res) => {
     )`);
     params.q = `%${search}%`;
   }
+  if (type) { filters.push('order_type = @type'); params.type = type; }
   if (date) { filters.push("substr(created_at, 1, 10) = @date"); params.date = date; }
 
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
@@ -28,21 +31,22 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { orderNumber, client, cartonType, note } = req.body || {};
+  const { type, orderNumber, client, cartonType, note } = req.body || {};
 
   if (!orderNumber || !client) {
     return res.status(400).json({ error: 'N° commande et client obligatoires' });
   }
+  const orderType = VALID_TYPES.includes(type) ? type : 'Zone 53';
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
   db.prepare(`
     INSERT INTO orders
-    (id, order_number, client, carton_type, note, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    (id, order_type, order_number, client, carton_type, note, created_by, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, orderNumber, client,
+    id, orderType, orderNumber, client,
     cartonType || null, note || null,
     req.user.displayName || req.user.username,
     now,
@@ -57,12 +61,13 @@ router.patch('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
   if (!existing) return res.status(404).json({ error: 'Commande introuvable' });
 
-  const allowed = ['note', 'cartonType', 'client', 'orderNumber'];
+  const allowed = ['note', 'cartonType', 'client', 'orderNumber', 'type'];
   const map = {
     note: 'note',
     cartonType: 'carton_type',
     client: 'client',
     orderNumber: 'order_number',
+    type: 'order_type',
   };
 
   const updates = [];
@@ -73,7 +78,8 @@ router.patch('/:id', (req, res) => {
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
       const col = map[key];
-      const newVal = req.body[key];
+      let newVal = req.body[key];
+      if (key === 'type' && !VALID_TYPES.includes(newVal)) continue;
       if (String(existing[col] ?? '') !== String(newVal ?? '')) {
         historyRows.push({
           field: col, oldValue: existing[col], newValue: newVal,

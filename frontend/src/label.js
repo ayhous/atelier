@@ -1,5 +1,3 @@
-import JsBarcode from 'jsbarcode';
-
 function formatDateForLabel(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -8,55 +6,35 @@ function formatDateForLabel(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function generateBarcodeSVG(value) {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  try {
-    JsBarcode(svg, String(value || '0'), {
-      format: 'CODE128',
-      width: 2.4,
-      height: 80,
-      displayValue: true,
-      fontSize: 16,
-      margin: 0,
-      background: '#ffffff',
-      lineColor: '#000000',
-    });
-  } catch {
-    return '';
-  }
-  return svg.outerHTML;
-}
-
-export function buildZPL({ client, orderNumber, createdBy, createdAt }) {
+export function buildZPL({ type, client, orderNumber, createdBy, createdAt }) {
   const date = formatDateForLabel(createdAt);
+  const header = (type || 'Zone 53').toUpperCase();
   return `^XA
 ^PW812
 ^LL1218
-^FO40,30^GB732,60,60,B,0^FS
-^CF0,40,40
-^FO60,40^FR^FDZONE 53 - TRACABILITE^FS
+^FO40,30^GB732,80,80,B,0^FS
+^CF0,60,60
+^FO60,45^FR^FD${header}^FS
 ^CF0,28
-^FO60,120^FDCLIENT^FS
-^CF0,80,80
-^FO60,160^FD${client}^FS
+^FO60,160^FDCLIENT^FS
+^CF0,90,90
+^FO60,200^FD${client}^FS
 ^CF0,28
-^FO60,300^FDN COMMANDE^FS
-^CF0,60
-^FO60,340^FD${orderNumber}^FS
-^FO60,420^BCN,160,Y,N,N^FD${orderNumber}^FS
+^FO60,360^FDN COMMANDE^FS
+^CF0,70
+^FO60,400^FD${orderNumber}^FS
 ^CF0,28
-^FO60,650^FDPREPARE PAR^FS
+^FO60,540^FDPREPARE PAR^FS
 ^CF0,40
-^FO60,690^FD${createdBy || ''}^FS
+^FO60,580^FD${createdBy || ''}^FS
 ^CF0,28
-^FO60,770^FDDATE^FS
+^FO60,680^FDDATE^FS
 ^CF0,40
-^FO60,810^FD${date}^FS
+^FO60,720^FD${date}^FS
 ^XZ`;
 }
 
-export function printLabelHTML({ client, orderNumber, createdBy, createdAt }) {
-  // Preview window centered (4x6 portrait → ~420x600 px)
+export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt }) {
   const W = 460, H = 700;
   const dualLeft = window.screenLeft ?? window.screenX ?? 0;
   const dualTop = window.screenTop ?? window.screenY ?? 0;
@@ -74,7 +52,7 @@ export function printLabelHTML({ client, orderNumber, createdBy, createdAt }) {
   try { w.moveTo(left, top); w.resizeTo(W, H); } catch {}
 
   const date = formatDateForLabel(createdAt);
-  const barcodeSVG = generateBarcodeSVG(orderNumber);
+  const headerText = (type || 'Zone 53').toUpperCase();
 
   w.document.write(`<!DOCTYPE html>
 <html><head>
@@ -94,40 +72,39 @@ export function printLabelHTML({ client, orderNumber, createdBy, createdAt }) {
 
   .header {
     background: #000; color: #fff;
-    padding: 5mm 6mm;
-    display: flex; justify-content: space-between; align-items: center;
+    padding: 8mm 6mm;
+    text-align: center;
   }
-  .header .brand { font-size: 16pt; font-weight: 900; letter-spacing: 1px; }
-  .header .tag { font-size: 9pt; opacity: 0.85; }
+  .header .brand {
+    font-size: 28pt; font-weight: 900;
+    letter-spacing: 2px;
+  }
 
-  .section { padding: 5mm 6mm; border-bottom: 1px solid #000; }
+  .section { padding: 6mm; border-bottom: 1px solid #000; }
   .section:last-child { border-bottom: none; }
 
   .label-small {
-    font-size: 8pt; letter-spacing: 1.5px;
+    font-size: 9pt; letter-spacing: 1.5px;
     text-transform: uppercase; color: #555;
-    margin-bottom: 1.5mm; font-weight: bold;
+    margin-bottom: 2mm; font-weight: bold;
   }
   .client-name {
-    font-size: 30pt; font-weight: 900;
+    font-size: 32pt; font-weight: 900;
     line-height: 1.05; word-break: break-word;
   }
   .order-number {
-    font-size: 22pt; font-weight: bold;
-    letter-spacing: 1px; margin-bottom: 3mm;
+    font-size: 26pt; font-weight: bold;
+    letter-spacing: 1px;
   }
-  .barcode { text-align: center; padding: 2mm 0; }
-  .barcode svg { max-width: 100%; height: auto; }
 
   .footer-grid {
     display: grid; grid-template-columns: 1fr 1fr;
-    gap: 4mm; padding: 4mm 6mm;
-    font-size: 10pt;
+    gap: 4mm; padding: 6mm;
+    font-size: 11pt;
   }
-  .footer-grid .label-small { margin-bottom: 0.5mm; }
-  .footer-grid strong { font-size: 12pt; display: block; }
+  .footer-grid .label-small { margin-bottom: 1mm; }
+  .footer-grid strong { font-size: 13pt; display: block; }
 
-  /* Preview UI (hidden when printing) */
   .preview-bar {
     background: #2563eb; color: white; padding: 8px 12px;
     display: flex; justify-content: space-between; align-items: center;
@@ -150,24 +127,22 @@ export function printLabelHTML({ client, orderNumber, createdBy, createdAt }) {
 </head>
 <body>
   <div class="preview-bar">
-    <span>Aperçu étiquette colis</span>
+    <span>Aperçu étiquette</span>
     <button onclick="window.print()">Imprimer</button>
   </div>
   <div class="label">
     <div class="header">
-      <span class="brand">ZONE 53</span>
-      <span class="tag">TRAÇABILITÉ ATELIER</span>
+      <div class="brand">${escapeHtml(headerText)}</div>
     </div>
 
     <div class="section">
-      <div class="label-small">Destinataire / Client</div>
+      <div class="label-small">Client</div>
       <div class="client-name">${escapeHtml(client)}</div>
     </div>
 
     <div class="section">
       <div class="label-small">N° de commande</div>
       <div class="order-number">${escapeHtml(orderNumber)}</div>
-      <div class="barcode">${barcodeSVG}</div>
     </div>
 
     <div class="footer-grid">
