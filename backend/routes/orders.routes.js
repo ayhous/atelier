@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { db } from '../db.js';
+import { pool } from '../db.js';
 import { authRequired } from '../middleware/auth.js';
 
 const router = Router();
@@ -8,114 +8,127 @@ router.use(authRequired);
 
 const VALID_TYPES = ['Zone 53', 'Proforma'];
 
-router.get('/', (req, res) => {
-  const { search, date, type } = req.query;
-  const filters = [];
-  const params = {};
+router.get('/', async (req, res, next) => {
+  try {
+    const { search, date, type } = req.query;
+    const filters = [];
+    const params = [];
+    let i = 1;
 
-  if (search) {
-    filters.push(`(
-      order_number LIKE @q OR client LIKE @q OR created_by LIKE @q
-    )`);
-    params.q = `%${search}%`;
-  }
-  if (type) { filters.push('order_type = @type'); params.type = type; }
-  if (date) { filters.push("substr(created_at, 1, 10) = @date"); params.date = date; }
-
-  const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-  const rows = db.prepare(
-    `SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT 5000`
-  ).all(params);
-
-  res.json({ orders: rows });
-});
-
-router.post('/', (req, res) => {
-  const { type, orderNumber, client, cartonType, note } = req.body || {};
-
-  if (!orderNumber || !client) {
-    return res.status(400).json({ error: 'N° commande et client obligatoires' });
-  }
-  const orderType = VALID_TYPES.includes(type) ? type : 'Zone 53';
-
-  const id = crypto.randomUUID();
-  const now = new Date().toISOString();
-
-  db.prepare(`
-    INSERT INTO orders
-    (id, order_type, order_number, client, carton_type, note, created_by, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id, orderType, orderNumber, client,
-    cartonType || null, note || null,
-    req.user.displayName || req.user.username,
-    now,
-  );
-
-  const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-  res.status(201).json({ order: row });
-});
-
-router.patch('/:id', (req, res) => {
-  const { id } = req.params;
-  const existing = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-  if (!existing) return res.status(404).json({ error: 'Commande introuvable' });
-
-  const allowed = ['note', 'cartonType', 'client', 'orderNumber', 'type'];
-  const map = {
-    note: 'note',
-    cartonType: 'carton_type',
-    client: 'client',
-    orderNumber: 'order_number',
-    type: 'order_type',
-  };
-
-  const updates = [];
-  const params = { id };
-  const historyRows = [];
-  const changedBy = req.user.displayName || req.user.username;
-
-  for (const key of allowed) {
-    if (req.body[key] !== undefined) {
-      const col = map[key];
-      let newVal = req.body[key];
-      if (key === 'type' && !VALID_TYPES.includes(newVal)) continue;
-      if (String(existing[col] ?? '') !== String(newVal ?? '')) {
-        historyRows.push({
-          field: col, oldValue: existing[col], newValue: newVal,
-        });
-      }
-      updates.push(`${col} = @${key}`);
-      params[key] = newVal;
+    if (search) {
+      filters.push(`(
+        order_number ILIKE $${i} OR client ILIKE $${i} OR created_by ILIKE $${i}
+      )`);
+      params.push(`%${search}%`);
+      i++;
     }
-  }
+    if (type) {
+      filters.push(`order_type = $${i++}`);
+      params.push(type);
+    }
+    if (date) {
+      filters.push(`to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') = $${i++}`);
+      params.push(date);
+    }
 
-  if (!updates.length) return res.json({ order: existing });
-
-  const now = new Date().toISOString();
-  updates.push('updated_at = @updatedAt', 'updated_by = @updatedBy');
-  params.updatedAt = now;
-  params.updatedBy = changedBy;
-
-  db.prepare(`UPDATE orders SET ${updates.join(', ')} WHERE id = @id`).run(params);
-
-  const histStmt = db.prepare(`
-    INSERT INTO order_history (order_id, field, old_value, new_value, changed_by)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-  for (const h of historyRows) {
-    histStmt.run(id, h.field, String(h.oldValue ?? ''), String(h.newValue ?? ''), changedBy);
-  }
-
-  const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-  res.json({ order: row });
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const { rows } = await pool.query(
+      `SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT 5000`,
+      params,
+    );
+    res.json({ orders: rows });
+  } catch (e) { next(e); }
 });
 
-router.get('/:id/history', (req, res) => {
-  const rows = db.prepare(
-    'SELECT * FROM order_history WHERE order_id = ? ORDER BY changed_at DESC'
-  ).all(req.params.id);
-  res.json({ history: rows });
+router.post('/', async (req, res, next) => {
+  try {
+    const { type, orderNumber, client, cartonType, note } = req.body || {};
+
+    if (!orderNumber || !client) {
+      return res.status(400).json({ error: 'N° commande et client obligatoires' });
+    }
+    const orderType = VALID_TYPES.includes(type) ? type : 'Zone 53';
+
+    const id = crypto.randomUUID();
+    const createdBy = req.user.displayName || req.user.username;
+
+    const { rows } = await pool.query(
+      `INSERT INTO orders
+        (id, order_type, order_number, client, carton_type, note, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [id, orderType, orderNumber, client, cartonType || null, note || null, createdBy],
+    );
+    res.status(201).json({ order: rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const existingResult = await pool.query('SELECT * FROM orders WHERE id = $1', [id]);
+    const existing = existingResult.rows[0];
+    if (!existing) return res.status(404).json({ error: 'Commande introuvable' });
+
+    const allowed = ['note', 'cartonType', 'client', 'orderNumber', 'type'];
+    const map = {
+      note: 'note',
+      cartonType: 'carton_type',
+      client: 'client',
+      orderNumber: 'order_number',
+      type: 'order_type',
+    };
+
+    const updates = [];
+    const params = [];
+    const historyRows = [];
+    const changedBy = req.user.displayName || req.user.username;
+    let i = 1;
+
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        const col = map[key];
+        const newVal = req.body[key];
+        if (key === 'type' && !VALID_TYPES.includes(newVal)) continue;
+        if (String(existing[col] ?? '') !== String(newVal ?? '')) {
+          historyRows.push({ field: col, oldValue: existing[col], newValue: newVal });
+        }
+        updates.push(`${col} = $${i++}`);
+        params.push(newVal);
+      }
+    }
+
+    if (!updates.length) return res.json({ order: existing });
+
+    updates.push(`updated_at = NOW()`, `updated_by = $${i++}`);
+    params.push(changedBy);
+
+    params.push(id);
+    const { rows } = await pool.query(
+      `UPDATE orders SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+      params,
+    );
+
+    for (const h of historyRows) {
+      await pool.query(
+        `INSERT INTO order_history (order_id, field, old_value, new_value, changed_by)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, h.field, String(h.oldValue ?? ''), String(h.newValue ?? ''), changedBy],
+      );
+    }
+
+    res.json({ order: rows[0] });
+  } catch (e) { next(e); }
+});
+
+router.get('/:id/history', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM order_history WHERE order_id = $1 ORDER BY changed_at DESC',
+      [req.params.id],
+    );
+    res.json({ history: rows });
+  } catch (e) { next(e); }
 });
 
 export default router;

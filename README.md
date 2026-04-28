@@ -1,41 +1,37 @@
 # Traçabilité Zone 53
 
-Application interne warehouse : enregistrer chaque commande passant par la Zone 53,
-imprimer une étiquette Zebra, et garder une trace inviolable (qui, quoi, quand).
+Application interne warehouse : enregistre chaque commande passant par la Zone 53 ou Proforma,
+imprime une étiquette format colis (style DPD/FedEx), et garde une trace inviolable.
 
 ## Stack
 
-- **Backend** : Node.js + Express + SQLite (via `better-sqlite3`) + JWT
-- **Frontend** : React (Vite) + xlsx pour l'export
-- **DB** : 1 fichier `backend/data/warehouse.db` — sauvegarde = copier ce fichier
+- **Backend** : Node + Express + PostgreSQL (`pg`) + JWT
+- **Frontend** : React (Vite)
+- **Hébergement** : GitHub Pages (frontend) + Render (backend) + Supabase (DB) — tous gratuits
 
-## Démarrage
+---
+
+## Démarrage local
 
 ### Prérequis
-- Node.js 18+ ([nodejs.org](https://nodejs.org))
+
+- Node.js 18+
+- Une DB Postgres accessible (Supabase free, Postgres local, ou Docker)
 
 ### 1. Backend
 
 ```bash
 cd backend
-copy .env.example .env       # Windows
-# cp .env.example .env       # Linux/Mac
+cp .env.example .env
+# Éditer .env : remplir DATABASE_URL et JWT_SECRET
 npm install
+npm run migrate    # crée les tables et l'admin par défaut
 npm run dev
 ```
 
-Le serveur démarre sur `http://localhost:4000`.
-Au premier lancement, un admin par défaut est créé :
-- **utilisateur** : `admin`
-- **mot de passe** : `admin123`
-
-> ⚠️ Changez ce mot de passe immédiatement (variable `DEFAULT_ADMIN_PASSWORD` dans `.env`,
-> ou via l'API `/api/auth/change-password` plus tard).
-> Modifiez aussi `JWT_SECRET` avec une chaîne longue et aléatoire.
+Le serveur tourne sur `http://localhost:4000`.
 
 ### 2. Frontend
-
-Dans un autre terminal :
 
 ```bash
 cd frontend
@@ -43,56 +39,38 @@ npm install
 npm run dev
 ```
 
-Ouvrir `http://localhost:5173`. Les appels `/api/*` sont automatiquement
-proxifiés vers le backend.
+Ouvrir `http://localhost:5173`. Login par défaut : `admin` / `admin123`.
 
-## Mise en production sur le PC du warehouse
+---
 
-Option simple (machine unique) :
+## Déploiement (Plan B : GitHub Pages + Render + Supabase)
 
-1. `cd frontend && npm run build` → produit `frontend/dist/`
-2. Servir `dist/` depuis le backend, ou avec `npx serve dist`
-3. Mettre le backend en service Windows avec `pm2` ou `nssm`
-4. Sauvegarde quotidienne : copie de `backend/data/warehouse.db` vers un partage réseau
+Voir [docs/DEPLOY.md](docs/DEPLOY.md) pour le guide pas à pas.
 
-Option multi-postes : tous les PC du warehouse ouvrent la même URL pointant
-vers le serveur du backend.
+### Récapitulatif rapide
 
-## Comptes utilisateurs
+1. **Supabase** → créer un projet, récupérer la connection string Postgres
+2. **Render** → créer un Web Service connecté au repo GitHub :
+   - Root Directory : `backend`
+   - Build : `npm install && npm run migrate`
+   - Start : `npm start`
+   - Env vars : `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGINS`, `DEFAULT_ADMIN_*`
+3. **GitHub Pages** → Settings → Pages → source = GitHub Actions
+4. **GitHub repo Variables** → ajouter `VITE_API_URL` = URL Render
 
-- L'admin peut créer des utilisateurs via le bouton **Utilisateurs** en haut.
-- Deux rôles : `admin` (gère les comptes) et `user` (saisie + consultation).
-- Toute saisie est tracée avec le nom de l'utilisateur connecté et la date/heure serveur.
+À chaque `git push main`, le frontend se redéploie automatiquement sur GitHub Pages.
 
-## Étiquettes Zebra
+---
 
-Deux modes (au choix dans la colonne *Actions* du tableau) :
+## Sécurité avant prod
 
-- **Imprimer** : ouvre une fenêtre HTML format 100×60 mm avec impression
-  immédiate (Ctrl+P automatique). La Zebra doit être installée comme imprimante Windows.
-- **ZPL** : génère le code natif Zebra à coller dans *Zebra Setup Utilities*
-  (premier déploiement) ou à envoyer plus tard via le SDK BrowserPrint.
+- [ ] `JWT_SECRET` aléatoire de 64+ caractères
+- [ ] `DEFAULT_ADMIN_PASSWORD` changé
+- [ ] `CORS_ORIGINS` restreint à votre domaine GitHub Pages
+- [ ] DB Supabase : sauvegarde régulière (snapshot Supabase auto, ou export manuel)
 
-## Schéma de la base
+## Schéma DB
 
-- `users` : id, username, password_hash, display_name, role
-- `orders` : id, order_number, at_number, client, carton_type, carton_count,
-  status, note, created_by, created_at, updated_at, updated_by
+- `users` : id, username, password_hash, display_name, role, created_at
+- `orders` : id, order_type, order_number, client, carton_type, note, created_by, created_at, updated_at, updated_by
 - `order_history` : journal des modifications par champ
-
-## Évolutions possibles
-
-- Scanner code-barres USB (douchette) : déjà compatible — la douchette tape le
-  numéro dans le champ "N° commande" comme un clavier
-- Photo du carton (caméra USB) en cas de litige
-- Tableau de bord : stats par AT, par jour, par utilisateur
-- Confirmation atelier via lien/QR
-- Zebra BrowserPrint pour impression directe sans Ctrl+P
-- Synchronisation Active Directory pour le login
-
-## Sécurité — checklist avant prod
-
-- [ ] Changer `JWT_SECRET` dans `backend/.env` (chaîne aléatoire de 64+ caractères)
-- [ ] Changer le mot de passe admin par défaut
-- [ ] Sauvegarder régulièrement `backend/data/warehouse.db`
-- [ ] Mettre le backend derrière HTTPS si exposé hors LAN

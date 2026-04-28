@@ -1,3 +1,7 @@
+// En production, VITE_API_URL pointe vers le backend Render
+// En dev, vide → le proxy Vite redirige /api/* vers localhost:4000
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 const TOKEN_KEY = 'zone53_token';
 const USER_KEY = 'zone53_user';
 
@@ -15,7 +19,7 @@ export function clearSession() {
 }
 
 async function request(path, { method = 'GET', body, params } = {}) {
-  const url = new URL(path, window.location.origin);
+  const url = new URL(API_BASE + path, window.location.origin);
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       if (v) url.searchParams.set(k, v);
@@ -25,7 +29,7 @@ async function request(path, { method = 'GET', body, params } = {}) {
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(url.pathname + url.search, {
+  const res = await fetch(url.toString(), {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
