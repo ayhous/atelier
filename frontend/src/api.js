@@ -1,0 +1,56 @@
+const TOKEN_KEY = 'zone53_token';
+const USER_KEY = 'zone53_user';
+
+export function getToken() { return localStorage.getItem(TOKEN_KEY); }
+export function getUser() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch { return null; }
+}
+export function setSession(token, user) {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+export function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+async function request(path, { method = 'GET', body, params } = {}) {
+  const url = new URL(path, window.location.origin);
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      if (v) url.searchParams.set(k, v);
+    }
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(url.pathname + url.search, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) {
+    clearSession();
+    window.location.reload();
+    return;
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erreur API');
+  return data;
+}
+
+export const api = {
+  login: (username, password) =>
+    request('/api/auth/login', { method: 'POST', body: { username, password } }),
+  changePassword: (oldPassword, newPassword) =>
+    request('/api/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } }),
+  listUsers: () => request('/api/auth/users'),
+  createUser: (payload) => request('/api/auth/users', { method: 'POST', body: payload }),
+
+  listOrders: (params) => request('/api/orders', { params }),
+  createOrder: (payload) => request('/api/orders', { method: 'POST', body: payload }),
+  updateOrder: (id, payload) =>
+    request(`/api/orders/${id}`, { method: 'PATCH', body: payload }),
+  orderHistory: (id) => request(`/api/orders/${id}/history`),
+};
