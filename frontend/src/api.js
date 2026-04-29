@@ -34,7 +34,9 @@ async function request(path, { method = 'GET', body, params } = {}) {
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (res.status === 401) {
+  // 401 avec token existant = session expirée -> reload
+  // 401 sans token = mauvais identifiants au login -> on laisse l'appelant gérer l'erreur
+  if (res.status === 401 && token) {
     clearSession();
     window.location.reload();
     return;
