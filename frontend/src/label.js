@@ -6,13 +6,15 @@ function formatDateForLabel(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Format Zebra warehouse : 104 x 152 mm portrait, marge non-imprimable 0.5mm L/R
+// ZPL: 832 dots largeur, 1216 dots hauteur (8 dots/mm = 203 dpi standard Zebra)
 export function buildZPL({ type, client, orderNumber, createdBy, createdAt }) {
   const date = formatDateForLabel(createdAt);
   const header = (type || 'Zone 53').toUpperCase();
   return `^XA
-^PW812
-^LL1218
-^FO40,30^GB732,80,80,B,0^FS
+^PW832
+^LL1216
+^FO40,30^GB752,80,80,B,0^FS
 ^CF0,60,60
 ^FO60,45^FR^FD${header}^FS
 ^CF0,28
@@ -35,7 +37,7 @@ export function buildZPL({ type, client, orderNumber, createdBy, createdAt }) {
 }
 
 export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt }) {
-  const W = 460, H = 700;
+  const W = 480, H = 720;
   const dualLeft = window.screenLeft ?? window.screenX ?? 0;
   const dualTop = window.screenTop ?? window.screenY ?? 0;
   const winW = window.outerWidth || window.innerWidth || screen.availWidth;
@@ -59,15 +61,19 @@ export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt
 <meta charset="utf-8">
 <title>Étiquette ${escapeHtml(orderNumber)}</title>
 <style>
-  @page { size: 100mm 150mm; margin: 0; }
+  /* Format Zebra réel : 104 x 152 mm, marges non-imprimables 0.5mm gauche/droite */
+  @page { size: 104mm 152mm; margin: 0 0.5mm 0 0.5mm; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
   body { font-family: Arial, "Helvetica Neue", sans-serif; color: #000; background: #f4f6f8; }
 
   .label {
-    width: 100mm; min-height: 150mm;
-    background: white; margin: 0 auto;
-    display: flex; flex-direction: column;
+    width: 103mm;
+    min-height: 152mm;
+    background: white;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
   }
 
   .header {
@@ -76,11 +82,11 @@ export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt
     text-align: center;
   }
   .header .brand {
-    font-size: 28pt; font-weight: 900;
+    font-size: 30pt; font-weight: 900;
     letter-spacing: 2px;
   }
 
-  .section { padding: 6mm; border-bottom: 1px solid #000; }
+  .section { padding: 6mm; border-bottom: 1.5px solid #000; }
   .section:last-child { border-bottom: none; }
 
   .label-small {
@@ -89,11 +95,11 @@ export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt
     margin-bottom: 2mm; font-weight: bold;
   }
   .client-name {
-    font-size: 32pt; font-weight: 900;
+    font-size: 34pt; font-weight: 900;
     line-height: 1.05; word-break: break-word;
   }
   .order-number {
-    font-size: 26pt; font-weight: bold;
+    font-size: 28pt; font-weight: bold;
     letter-spacing: 1px;
   }
 
@@ -116,18 +122,26 @@ export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt
     font-weight: bold;
   }
   @media screen {
-    .label { box-shadow: 0 4px 16px rgba(0,0,0,0.15); margin-top: 8px; margin-bottom: 8px; }
+    .label {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      margin-top: 8px; margin-bottom: 8px;
+    }
   }
   @media print {
     body { background: white; }
     .preview-bar { display: none; }
-    .label { box-shadow: none; margin: 0; }
+    .label {
+      box-shadow: none;
+      margin: 0;
+      width: 103mm;
+      min-height: 152mm;
+    }
   }
 </style>
 </head>
 <body>
   <div class="preview-bar">
-    <span>Aperçu étiquette</span>
+    <span>Aperçu étiquette (104 × 152 mm)</span>
     <button onclick="window.print()">Imprimer</button>
   </div>
   <div class="label">
