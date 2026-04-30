@@ -42,22 +42,23 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { type, orderNumber, client, cartonType, note } = req.body || {};
+    const { type, orderNumber, client, cartonType, cartonCount, note } = req.body || {};
 
     if (!orderNumber || !client) {
       return res.status(400).json({ error: 'N° commande et client obligatoires' });
     }
     const orderType = VALID_TYPES.includes(type) ? type : 'Zone 53';
+    const count = Math.max(1, Math.min(99, Number(cartonCount) || 1));
 
     const id = crypto.randomUUID();
     const createdBy = req.user.displayName || req.user.username;
 
     const { rows } = await pool.query(
       `INSERT INTO orders
-        (id, order_type, order_number, client, carton_type, note, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+        (id, order_type, order_number, client, carton_type, carton_count, note, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [id, orderType, orderNumber, client, cartonType || null, note || null, createdBy],
+      [id, orderType, orderNumber, client, cartonType || null, count, note || null, createdBy],
     );
     res.status(201).json({ order: rows[0] });
   } catch (e) { next(e); }
@@ -70,10 +71,11 @@ router.patch('/:id', async (req, res, next) => {
     const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ error: 'Commande introuvable' });
 
-    const allowed = ['note', 'cartonType', 'client', 'orderNumber', 'type'];
+    const allowed = ['note', 'cartonType', 'cartonCount', 'client', 'orderNumber', 'type'];
     const map = {
       note: 'note',
       cartonType: 'carton_type',
+      cartonCount: 'carton_count',
       client: 'client',
       orderNumber: 'order_number',
       type: 'order_type',

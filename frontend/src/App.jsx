@@ -12,6 +12,7 @@ const emptyForm = {
   orderNumber: '',
   client: '',
   cartonType: 'Moyen',
+  cartonCount: 1,
   note: '',
 };
 
@@ -66,6 +67,8 @@ export default function App() {
           orderNumber: order.order_number,
           createdBy: order.created_by,
           createdAt: order.created_at,
+          note: order.note,
+          cartonCount: order.carton_count || 1,
         });
       }
       setForm({ ...emptyForm, type: form.type });
@@ -116,6 +119,8 @@ export default function App() {
       orderNumber: o.order_number,
       createdBy: o.created_by,
       createdAt: o.created_at,
+      note: o.note,
+      cartonCount: o.carton_count || 1,
     }));
   }
 
@@ -198,11 +203,16 @@ export default function App() {
                 onChange={e => update('client', e.target.value)}
               />
             </label>
-            <label className="full">Type carton
+            <label>Type carton
               <select value={form.cartonType}
                 onChange={e => update('cartonType', e.target.value)}>
                 {CARTON_TYPES.map(t => <option key={t}>{t}</option>)}
               </select>
+            </label>
+            <label>Nombre de cartons
+              <input type="number" min="1" max="99"
+                value={form.cartonCount}
+                onChange={e => update('cartonCount', e.target.value)} />
             </label>
             <label className="full">Note
               <textarea rows="2" value={form.note}
@@ -245,6 +255,7 @@ export default function App() {
                     ['order_number', 'Commande'],
                     ['client', 'Client'],
                     ['carton_type', 'Carton'],
+                    ['carton_count', 'Nb'],
                     ['created_by', 'Créé par'],
                   ].map(([k, label]) => (
                     <th key={k} onClick={() => toggleSort(k)}>
@@ -267,6 +278,7 @@ export default function App() {
                     <td><b>{o.order_number}</b></td>
                     <td>{o.client}</td>
                     <td>{o.carton_type}</td>
+                    <td><b>{o.carton_count || 1}</b></td>
                     <td><span className="user-tag">{o.created_by}</span></td>
                     <td className="note">
                       {editingNoteId === o.id ? (
@@ -291,13 +303,15 @@ export default function App() {
                         orderNumber: o.order_number,
                         createdBy: o.created_by,
                         createdAt: o.created_at,
+                        note: o.note,
+                        cartonCount: o.carton_count || 1,
                       })}>Imprimer</button>
                       <button className="ghost" onClick={() => generateLabel(o)}>ZPL</button>
                     </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan="8" className="empty">Aucune commande</td></tr>
+                  <tr><td colSpan="9" className="empty">Aucune commande</td></tr>
                 )}
               </tbody>
             </table>

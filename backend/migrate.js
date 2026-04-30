@@ -18,12 +18,16 @@ const SCHEMA = `
     order_number TEXT NOT NULL,
     client TEXT NOT NULL,
     carton_type TEXT,
+    carton_count INTEGER NOT NULL DEFAULT 1,
     note TEXT,
     created_by TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ,
     updated_by TEXT
   );
+
+  -- Migration idempotente pour les bases existantes (ajout carton_count)
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS carton_count INTEGER NOT NULL DEFAULT 1;
 
   CREATE INDEX IF NOT EXISTS idx_orders_order_number ON orders(order_number);
   CREATE INDEX IF NOT EXISTS idx_orders_client ON orders(client);
