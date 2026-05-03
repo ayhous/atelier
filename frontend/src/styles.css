@@ -472,3 +472,162 @@ input, select, textarea { color-scheme: dark; }
   font-size: 11px; color: #64748b;
   margin-top: 2px;
 }
+
+/* ==========================================================================
+   Bouton ! "Détails" sur chaque ligne
+   ========================================================================== */
+.th-detail { width: 38px; padding-left: 14px !important; padding-right: 0 !important; }
+.td-detail { width: 38px; padding-left: 14px !important; padding-right: 4px !important; }
+.btn-detail {
+  width: 24px; height: 24px; padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #2a3a5e;
+  font-size: 13px; font-weight: 800; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.btn-detail:hover {
+  background: rgba(245,158,11,0.12);
+  color: #fbbf24;
+  border-color: rgba(245,158,11,0.6);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.1);
+}
+.btn-detail:focus-visible { outline: 2px solid #fbbf24; outline-offset: 2px; }
+
+/* ==========================================================================
+   Modal "Détails de la commande"
+   ========================================================================== */
+.modal.modal-detail { max-width: 720px; }
+
+.detail-body { padding: 24px 28px 8px; display: flex; flex-direction: column; gap: 22px; }
+
+.detail-creator {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px; background: #0f1729;
+  border: 1px solid #1f2a44; border-radius: 10px;
+}
+.detail-creator-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.detail-creator-name {
+  font-size: 16px; font-weight: 600; color: #f1f5f9;
+  letter-spacing: -0.005em;
+}
+.detail-creator-meta {
+  font-size: 12px; color: #94a3b8;
+}
+.detail-creator-meta b { color: #cbd5e1; font-weight: 600; }
+
+.detail-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px; background: #0f1729;
+  border: 1px solid #1f2a44; border-radius: 10px;
+}
+.detail-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.detail-row-full { grid-column: 1 / -1; }
+.detail-label {
+  font-size: 11px; color: #94a3b8; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.detail-value {
+  font-size: 14px; color: #e6ecf5;
+  word-break: break-word;
+}
+.detail-value .muted { color: #64748b; }
+.detail-mult { color: #64748b; margin: 0 4px; }
+
+/* Historique */
+.detail-history h4 {
+  margin: 0 0 10px; font-size: 12px; font-weight: 600;
+  color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.detail-history .empty {
+  padding: 16px; background: #0f1729;
+  border: 1px dashed #1f2a44; border-radius: 8px;
+  margin: 0;
+}
+.history-list {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.history-list li {
+  background: #0f1729;
+  border: 1px solid #1f2a44; border-radius: 8px;
+  padding: 10px 12px;
+}
+.history-line {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: 10px; align-items: start;
+}
+.history-text { font-size: 13px; color: #cbd5e1; line-height: 1.4; }
+.history-text b { color: #f1f5f9; font-weight: 600; }
+.history-text code {
+  font-family: "JetBrains Mono", "Fira Code", Menlo, monospace;
+  font-size: 11px; padding: 1px 6px;
+  background: #0b1220;
+  border: 1px solid #1f2a44; border-radius: 4px;
+  color: #93c5fd;
+}
+.history-diff {
+  margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap;
+  font-size: 12px;
+}
+.history-old {
+  color: #fca5a5; text-decoration: line-through;
+  background: rgba(239,68,68,0.08); padding: 1px 6px;
+  border-radius: 3px; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-arrow { color: #64748b; }
+.history-new {
+  color: #6ee7b7;
+  background: rgba(16,185,129,0.08); padding: 1px 6px;
+  border-radius: 3px; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.history-time {
+  font-size: 11px; color: #64748b; white-space: nowrap;
+  align-self: center;
+}
+
+/* ZPL inline dans le modal */
+.detail-zpl {
+  background: #0b1220;
+  border: 1px solid #1f2a44; border-radius: 10px;
+  padding: 14px;
+}
+.detail-zpl-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.detail-zpl-head h4 {
+  margin: 0; font-size: 12px; font-weight: 600;
+  color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.detail-zpl textarea {
+  width: 100%;
+  font-family: "JetBrains Mono", "Fira Code", Menlo, monospace;
+  font-size: 11px; padding: 10px;
+  background: #08101e; color: #e6ecf5;
+  border: 1px solid #1f2a44; border-radius: 6px;
+  resize: vertical;
+}
+
+/* Footer du modal détail */
+.detail-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 16px 28px 22px;
+  border-top: 1px solid #1f2a44;
+  margin-top: 8px;
+  position: sticky; bottom: 0; background: #111a2e;
+}
+.detail-footer button { padding: 11px 18px; }
+
+@media (max-width: 600px) {
+  .detail-grid { grid-template-columns: 1fr; }
+  .history-line { grid-template-columns: 22px 1fr; }
+  .history-time { grid-column: 1 / -1; padding-left: 32px; }
+}

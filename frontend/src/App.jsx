@@ -32,9 +32,9 @@ export default function App() {
   const [sortBy, setSortBy] = useState({ key: 'created_at', dir: 'desc' });
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
-  const [zplPreview, setZplPreview] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
   const [avatars, setAvatars] = useState({});
+  const [detailOrder, setDetailOrder] = useState(null);
 
   useEffect(() => { if (user) { refresh(); refreshAvatars(); } }, [user]);
   useEffect(() => {
@@ -122,18 +122,6 @@ export default function App() {
   function logout() {
     clearSession();
     setUser(null);
-  }
-
-  function generateLabel(o) {
-    setZplPreview(buildZPL({
-      type: o.order_type,
-      client: o.client,
-      orderNumber: o.order_number,
-      createdBy: o.created_by,
-      createdAt: o.created_at,
-      note: o.note,
-      cartonCount: o.carton_count || 1,
-    }));
   }
 
   const filtered = useMemo(() => {
@@ -268,6 +256,7 @@ export default function App() {
             <table>
               <thead>
                 <tr>
+                  <th className="th-detail" aria-label="Détails"></th>
                   {[
                     ['created_at', 'Date'],
                     ['order_type', 'Type'],
@@ -275,19 +264,25 @@ export default function App() {
                     ['client', 'Client'],
                     ['carton_type', 'Carton'],
                     ['carton_count', 'Nb'],
-                    ['created_by', 'Créé par'],
                   ].map(([k, label]) => (
                     <th key={k} onClick={() => toggleSort(k)}>
                       {label} {sortBy.key === k ? (sortBy.dir === 'asc' ? '▲' : '▼') : ''}
                     </th>
                   ))}
                   <th>Note</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(o => (
                   <tr key={o.id}>
+                    <td className="td-detail">
+                      <button
+                        type="button"
+                        className="btn-detail"
+                        title="Détails de la commande"
+                        onClick={() => setDetailOrder(o)}
+                      >!</button>
+                    </td>
                     <td>{formatDate(o.created_at)}</td>
                     <td>
                       <span className={`type-badge type-${(o.order_type || '').replace(/\s+/g, '').toLowerCase()}`}>
@@ -298,13 +293,6 @@ export default function App() {
                     <td>{o.client}</td>
                     <td>{o.carton_type}</td>
                     <td><b>{o.carton_count || 1}</b></td>
-                    <td>
-                      <Avatar
-                        name={o.created_by}
-                        avatar={avatars[o.created_by]}
-                        size={28}
-                      />
-                    </td>
                     <td className="note">
                       {editingNoteId === o.id ? (
                         <>
@@ -321,44 +309,29 @@ export default function App() {
                         </span>
                       )}
                     </td>
-                    <td className="row-actions">
-                      <button onClick={() => printLabelHTML({
-                        type: o.order_type,
-                        client: o.client,
-                        orderNumber: o.order_number,
-                        createdBy: o.created_by,
-                        createdAt: o.created_at,
-                        note: o.note,
-                        cartonCount: o.carton_count || 1,
-                      })}>Imprimer</button>
-                      <button className="ghost" onClick={() => generateLabel(o)}>ZPL</button>
-                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan="9" className="empty">Aucune commande</td></tr>
+                  <tr><td colSpan="8" className="empty">Aucune commande</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         </section>
 
-        {zplPreview && (
-          <section className="zpl">
-            <h3>ZPL prêt à copier</h3>
-            <textarea rows="8" readOnly value={zplPreview} />
-            <div>
-              <button onClick={() => navigator.clipboard.writeText(zplPreview)}>Copier</button>
-              <button className="ghost" onClick={() => setZplPreview('')}>Fermer</button>
-            </div>
-          </section>
-        )}
-
         {showAdmin && (
           <AdminPanel
             currentUserId={user.id}
             onClose={() => setShowAdmin(false)}
             onUsersChanged={refreshAvatars}
+          />
+        )}
+
+        {detailOrder && (
+          <OrderDetailModal
+            order={detailOrder}
+            avatars={avatars}
+            onClose={() => setDetailOrder(null)}
           />
         )}
       </main>
@@ -634,4 +607,156 @@ function formatDate(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return iso;
   return d.toLocaleString('fr-FR');
+}
+
+const FIELD_LABELS = {
+  note: 'Note',
+  carton_type: 'Type carton',
+  carton_count: 'Nombre cartons',
+  client: 'Client',
+  order_number: 'N° commande',
+  order_type: 'Type',
+};
+
+function OrderDetailModal({ order, avatars, onClose }) {
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [zpl, setZpl] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setHistoryLoading(true);
+    api.orderHistory(order.id)
+      .then(({ history }) => setHistory(history || []))
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [order.id]);
+
+  const labelPayload = {
+    type: order.order_type,
+    client: order.client,
+    orderNumber: order.order_number,
+    createdBy: order.created_by,
+    createdAt: order.created_at,
+    note: order.note,
+    cartonCount: order.carton_count || 1,
+  };
+
+  function doPrint() { printLabelHTML(labelPayload); }
+  function doZpl() { setZpl(buildZPL(labelPayload)); setCopied(false); }
+  async function copyZpl() {
+    try {
+      await navigator.clipboard.writeText(zpl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  }
+
+  const typeClass = `type-${(order.order_type || '').replace(/\s+/g, '').toLowerCase()}`;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal modal-detail" onClick={e => e.stopPropagation()}>
+        <header className="modal-header">
+          <h3>Détails de la commande</h3>
+          <button className="ghost" onClick={onClose}>Fermer</button>
+        </header>
+
+        <div className="detail-body">
+          <div className="detail-creator">
+            <Avatar
+              name={order.created_by}
+              avatar={avatars[order.created_by]}
+              size={64}
+            />
+            <div className="detail-creator-info">
+              <div className="detail-creator-name">{order.created_by}</div>
+              <div className="detail-creator-meta">
+                Créé le <b>{formatDate(order.created_at)}</b>
+              </div>
+              {order.updated_at && (
+                <div className="detail-creator-meta">
+                  Modifié le {formatDate(order.updated_at)} par <b>{order.updated_by}</b>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="detail-grid">
+            <div className="detail-row">
+              <span className="detail-label">Type</span>
+              <span className="detail-value">
+                <span className={`type-badge ${typeClass}`}>{order.order_type || 'Zone 53'}</span>
+              </span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-label">N° commande</span>
+              <span className="detail-value"><b>{order.order_number}</b></span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-label">Client</span>
+              <span className="detail-value">{order.client}</span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-label">Carton</span>
+              <span className="detail-value">
+                {order.carton_type || '—'} <span className="detail-mult">×</span> <b>{order.carton_count || 1}</b>
+              </span>
+            </div>
+            <div className="detail-row detail-row-full">
+              <span className="detail-label">Note</span>
+              <span className="detail-value">{order.note || <i className="muted">—</i>}</span>
+            </div>
+          </div>
+
+          <div className="detail-history">
+            <h4>Historique des modifications</h4>
+            {historyLoading ? (
+              <p className="empty">Chargement…</p>
+            ) : history.length === 0 ? (
+              <p className="empty">Aucune modification enregistrée</p>
+            ) : (
+              <ul className="history-list">
+                {history.map(h => (
+                  <li key={h.id}>
+                    <div className="history-line">
+                      <Avatar name={h.changed_by} avatar={avatars[h.changed_by]} size={22} />
+                      <div className="history-text">
+                        <b>{h.changed_by}</b> a modifié{' '}
+                        <code>{FIELD_LABELS[h.field] || h.field}</code>
+                        <div className="history-diff">
+                          <span className="history-old">{h.old_value || '∅'}</span>
+                          <span className="history-arrow">→</span>
+                          <span className="history-new">{h.new_value || '∅'}</span>
+                        </div>
+                      </div>
+                      <span className="history-time">{formatDate(h.changed_at)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {zpl && (
+            <div className="detail-zpl">
+              <div className="detail-zpl-head">
+                <h4>ZPL généré</h4>
+                <button className="ghost" onClick={copyZpl}>
+                  {copied ? '✓ Copié' : 'Copier'}
+                </button>
+              </div>
+              <textarea rows="8" readOnly value={zpl} />
+            </div>
+          )}
+        </div>
+
+        <footer className="detail-footer">
+          <button className="primary" onClick={doPrint}>Imprimer l'étiquette</button>
+          <button className="ghost" onClick={doZpl}>Générer ZPL</button>
+          <button className="ghost" onClick={onClose}>Fermer</button>
+        </footer>
+      </div>
+    </div>
+  );
 }
