@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { api, getUser, clearSession } from './api.js';
 import { buildZPL, printLabelHTML } from './label.js';
 import Login from './Login.jsx';
+import Avatar from './Avatar.jsx';
 
 const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
 const ORDER_TYPES = ['Zone 53', 'Proforma'];
@@ -33,8 +34,9 @@ export default function App() {
   const [editingNoteValue, setEditingNoteValue] = useState('');
   const [zplPreview, setZplPreview] = useState('');
   const [showAdmin, setShowAdmin] = useState(false);
+  const [avatars, setAvatars] = useState({});
 
-  useEffect(() => { if (user) refresh(); }, [user]);
+  useEffect(() => { if (user) { refresh(); refreshAvatars(); } }, [user]);
   useEffect(() => {
     localStorage.setItem(AUTO_PRINT_KEY, autoPrint ? 'true' : 'false');
   }, [autoPrint]);
@@ -45,6 +47,16 @@ export default function App() {
       setOrders(orders);
     } catch (err) {
       alert(err.message);
+    }
+  }
+
+  async function refreshAvatars() {
+    try {
+      const { avatars } = await api.getAvatars();
+      setAvatars(avatars || {});
+    } catch (err) {
+      // pas bloquant : on garde le fallback initiales
+      console.warn('avatars fetch failed', err);
     }
   }
 
@@ -166,7 +178,14 @@ export default function App() {
               <button onClick={() => setShowAdmin(true)}>Utilisateurs</button>
             </>
           )}
-          <span className="user-pill">{user.displayName} ({user.role})</span>
+          <span className="user-pill">
+            <Avatar
+              name={user.displayName}
+              avatar={avatars[user.displayName]}
+              size={24}
+            />
+            <span>{user.displayName} <em>({user.role})</em></span>
+          </span>
           <button className="ghost" onClick={logout}>Déconnexion</button>
         </div>
       </header>
@@ -279,7 +298,13 @@ export default function App() {
                     <td>{o.client}</td>
                     <td>{o.carton_type}</td>
                     <td><b>{o.carton_count || 1}</b></td>
-                    <td><span className="user-tag">{o.created_by}</span></td>
+                    <td>
+                      <Avatar
+                        name={o.created_by}
+                        avatar={avatars[o.created_by]}
+                        size={28}
+                      />
+                    </td>
                     <td className="note">
                       {editingNoteId === o.id ? (
                         <>
@@ -333,6 +358,7 @@ export default function App() {
           <AdminPanel
             currentUserId={user.id}
             onClose={() => setShowAdmin(false)}
+            onUsersChanged={refreshAvatars}
           />
         )}
       </main>
@@ -341,10 +367,40 @@ export default function App() {
 }
 
 const emptyUserForm = {
-  username: '', password: '', displayName: '', role: 'user',
+  username: '', password: '', displayName: '', role: 'user', avatar: null,
 };
 
-function AdminPanel({ onClose, currentUserId }) {
+const AVATAR_SIZE = 128;
+const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB en entrée — sera redimensionné
+
+async function fileToAvatarDataURL(file) {
+  if (!file.type.startsWith('image/')) throw new Error('Le fichier doit être une image');
+  if (file.size > MAX_FILE_BYTES) throw new Error('Image trop lourde (max 5 MB)');
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = () => rej(new Error('Image invalide'));
+      i.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = AVATAR_SIZE;
+    canvas.height = AVATAR_SIZE;
+    const ctx = canvas.getContext('2d');
+    // crop "cover" centré
+    const scale = Math.max(AVATAR_SIZE / img.width, AVATAR_SIZE / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.drawImage(img, (AVATAR_SIZE - w) / 2, (AVATAR_SIZE - h) / 2, w, h);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function AdminPanel({ onClose, currentUserId, onUsersChanged }) {
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(emptyUserForm);
   const [editingId, setEditingId] = useState(null);
@@ -367,9 +423,27 @@ function AdminPanel({ onClose, currentUserId }) {
       password: '',
       displayName: u.display_name,
       role: u.role,
+      avatar: u.avatar || null,
     });
     setError('');
     document.querySelector('.user-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function handleAvatarFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // reset input pour permettre re-upload
+    if (!file) return;
+    setError('');
+    try {
+      const dataUrl = await fileToAvatarDataURL(file);
+      setForm(f => ({ ...f, avatar: dataUrl }));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  function clearAvatar() {
+    setForm(f => ({ ...f, avatar: null }));
   }
 
   function cancelEdit() {
@@ -388,6 +462,7 @@ function AdminPanel({ onClose, currentUserId }) {
           username: form.username,
           displayName: form.displayName,
           role: form.role,
+          avatar: form.avatar, // null = suppression, dataURL = nouvelle photo
         };
         if (form.password) payload.password = form.password;
         await api.updateUser(editingId, payload);
@@ -399,6 +474,7 @@ function AdminPanel({ onClose, currentUserId }) {
       }
       cancelEdit();
       await load();
+      onUsersChanged?.();
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
@@ -409,6 +485,7 @@ function AdminPanel({ onClose, currentUserId }) {
       await api.deleteUser(u.id);
       if (editingId === u.id) cancelEdit();
       await load();
+      onUsersChanged?.();
     } catch (e) { alert(e.message); }
   }
 
@@ -430,6 +507,36 @@ function AdminPanel({ onClose, currentUserId }) {
           </div>
 
           <form onSubmit={submit} className="user-form-grid">
+            <div className="avatar-field full">
+              <span>Avatar</span>
+              <div className="avatar-uploader">
+                <Avatar
+                  name={form.displayName || form.username || '?'}
+                  avatar={form.avatar}
+                  size={72}
+                />
+                <div className="avatar-uploader-actions">
+                  <label className="btn ghost avatar-btn">
+                    {form.avatar ? 'Remplacer la photo' : 'Choisir une photo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarFile}
+                      hidden
+                    />
+                  </label>
+                  {form.avatar && (
+                    <button type="button" className="ghost" onClick={clearAvatar}>
+                      Retirer
+                    </button>
+                  )}
+                  <small className="avatar-hint">
+                    Recommandé : carrée. Recadrée et redimensionnée en 128×128 automatiquement.
+                  </small>
+                </div>
+              </div>
+            </div>
+
             <label>
               <span>Login</span>
               <input
@@ -487,6 +594,7 @@ function AdminPanel({ onClose, currentUserId }) {
         <table className="users-table">
           <thead>
             <tr>
+              <th></th>
               <th>Login</th>
               <th>Nom complet</th>
               <th>Rôle</th>
@@ -497,6 +605,7 @@ function AdminPanel({ onClose, currentUserId }) {
           <tbody>
             {users.map(u => (
               <tr key={u.id} className={editingId === u.id ? 'editing' : ''}>
+                <td><Avatar name={u.display_name} avatar={u.avatar} size={32} /></td>
                 <td><b>{u.username}</b>{u.id === currentUserId && <span className="self-tag">vous</span>}</td>
                 <td>{u.display_name}</td>
                 <td>

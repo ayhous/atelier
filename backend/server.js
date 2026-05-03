@@ -25,7 +25,7 @@ app.use(cors({
     cb(new Error(`CORS bloqué pour ${origin}`));
   },
 }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);

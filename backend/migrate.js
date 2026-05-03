@@ -9,8 +9,12 @@ const SCHEMA = `
     password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user',
+    avatar TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  -- Migration idempotente pour les bases existantes (ajout avatar)
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
 
   CREATE TABLE IF NOT EXISTS orders (
     id TEXT PRIMARY KEY,

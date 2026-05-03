@@ -41,25 +41,49 @@ router.get('/me', authRequired, (req, res) => {
 router.get('/users', authRequired, adminOnly, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, username, display_name, role, created_at FROM users ORDER BY username'
+      'SELECT id, username, display_name, role, avatar, created_at FROM users ORDER BY username'
     );
     res.json({ users: rows });
   } catch (e) { next(e); }
 });
 
+// Map léger displayName -> avatar, accessible à tout user authentifié
+// (pour afficher les avatars dans la liste des commandes).
+router.get('/avatars', authRequired, async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT display_name, avatar FROM users');
+    const map = {};
+    for (const r of rows) map[r.display_name] = r.avatar || null;
+    res.json({ avatars: map });
+  } catch (e) { next(e); }
+});
+
+function validateAvatar(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value !== 'string') throw new Error('Avatar invalide');
+  if (!value.startsWith('data:image/')) throw new Error('Avatar invalide');
+  // Base64 pesé : ~1.37 octets par caractère ; on cap à ~200KB de base64 (= ~150KB image)
+  if (value.length > 200_000) throw new Error('Avatar trop volumineux');
+  return value;
+}
+
 router.post('/users', authRequired, adminOnly, async (req, res, next) => {
   try {
-    const { username, password, displayName, role } = req.body || {};
+    const { username, password, displayName, role, avatar } = req.body || {};
     if (!username || !password || !displayName) {
       return res.status(400).json({ error: 'Champs manquants' });
     }
+    let avatarValue;
+    try { avatarValue = validateAvatar(avatar); }
+    catch (e) { return res.status(400).json({ error: e.message }); }
+
     const exists = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
     if (exists.rows.length) return res.status(409).json({ error: 'Utilisateur déjà existant' });
 
     const hash = bcrypt.hashSync(password, 10);
     const { rows } = await pool.query(
-      'INSERT INTO users (username, password_hash, display_name, role) VALUES ($1, $2, $3, $4) RETURNING id',
-      [username, hash, displayName, role === 'admin' ? 'admin' : 'user']
+      'INSERT INTO users (username, password_hash, display_name, role, avatar) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [username, hash, displayName, role === 'admin' ? 'admin' : 'user', avatarValue]
     );
     res.status(201).json({ id: rows[0].id });
   } catch (e) { next(e); }
@@ -72,10 +96,19 @@ router.patch('/users/:id', authRequired, adminOnly, async (req, res, next) => {
     const user = result.rows[0];
     if (!user) return res.status(404).json({ error: 'Utilisateur introuvable' });
 
-    const { username, displayName, role, password } = req.body || {};
+    const { username, displayName, role, password, avatar } = req.body || {};
     const updates = [];
     const params = [];
     let i = 1;
+
+    if (avatar !== undefined) {
+      // null ou '' = suppression de l'avatar
+      let avatarValue;
+      try { avatarValue = validateAvatar(avatar); }
+      catch (e) { return res.status(400).json({ error: e.message }); }
+      updates.push(`avatar = $${i++}`);
+      params.push(avatarValue);
+    }
 
     if (username && username !== user.username) {
       const dup = await pool.query(
@@ -109,7 +142,7 @@ router.patch('/users/:id', authRequired, adminOnly, async (req, res, next) => {
       `UPDATE users SET ${updates.join(', ')} WHERE id = $${i}`, params
     );
     const updated = await pool.query(
-      'SELECT id, username, display_name, role, created_at FROM users WHERE id = $1', [id]
+      'SELECT id, username, display_name, role, avatar, created_at FROM users WHERE id = $1', [id]
     );
     res.json({ user: updated.rows[0] });
   } catch (e) { next(e); }

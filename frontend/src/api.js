@@ -52,6 +52,7 @@ export const api = {
   changePassword: (oldPassword, newPassword) =>
     request('/api/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } }),
   listUsers: () => request('/api/auth/users'),
+  getAvatars: () => request('/api/auth/avatars'),
   createUser: (payload) => request('/api/auth/users', { method: 'POST', body: payload }),
   updateUser: (id, payload) =>
     request(`/api/auth/users/${id}`, { method: 'PATCH', body: payload }),
