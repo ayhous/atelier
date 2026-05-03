@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { api, getUser, clearSession } from './api.js';
-import { buildZPL, printLabelHTML } from './label.js';
+import { printLabelHTML } from './label.js';
 import Login from './Login.jsx';
 import Avatar from './Avatar.jsx';
 
@@ -621,8 +621,6 @@ const FIELD_LABELS = {
 function OrderDetailModal({ order, avatars, onClose }) {
   const [history, setHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(true);
-  const [zpl, setZpl] = useState('');
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setHistoryLoading(true);
@@ -643,14 +641,6 @@ function OrderDetailModal({ order, avatars, onClose }) {
   };
 
   function doPrint() { printLabelHTML(labelPayload); }
-  function doZpl() { setZpl(buildZPL(labelPayload)); setCopied(false); }
-  async function copyZpl() {
-    try {
-      await navigator.clipboard.writeText(zpl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* ignore */ }
-  }
 
   const typeClass = `type-${(order.order_type || '').replace(/\s+/g, '').toLowerCase()}`;
 
@@ -738,22 +728,10 @@ function OrderDetailModal({ order, avatars, onClose }) {
             )}
           </div>
 
-          {zpl && (
-            <div className="detail-zpl">
-              <div className="detail-zpl-head">
-                <h4>ZPL généré</h4>
-                <button className="ghost" onClick={copyZpl}>
-                  {copied ? '✓ Copié' : 'Copier'}
-                </button>
-              </div>
-              <textarea rows="8" readOnly value={zpl} />
-            </div>
-          )}
         </div>
 
         <footer className="detail-footer">
           <button className="primary" onClick={doPrint}>Imprimer l'étiquette</button>
-          <button className="ghost" onClick={doZpl}>Générer ZPL</button>
           <button className="ghost" onClick={onClose}>Fermer</button>
         </footer>
       </div>

@@ -593,29 +593,6 @@ input, select, textarea { color-scheme: dark; }
   align-self: center;
 }
 
-/* ZPL inline dans le modal */
-.detail-zpl {
-  background: #0b1220;
-  border: 1px solid #1f2a44; border-radius: 10px;
-  padding: 14px;
-}
-.detail-zpl-head {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 10px;
-}
-.detail-zpl-head h4 {
-  margin: 0; font-size: 12px; font-weight: 600;
-  color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em;
-}
-.detail-zpl textarea {
-  width: 100%;
-  font-family: "JetBrains Mono", "Fira Code", Menlo, monospace;
-  font-size: 11px; padding: 10px;
-  background: #08101e; color: #e6ecf5;
-  border: 1px solid #1f2a44; border-radius: 6px;
-  resize: vertical;
-}
-
 /* Footer du modal détail */
 .detail-footer {
   display: flex; justify-content: flex-end; gap: 8px;
