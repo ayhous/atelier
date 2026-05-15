@@ -8,6 +8,37 @@ router.use(authRequired);
 
 const VALID_TYPES = ['Zone 53', 'Proforma'];
 
+// Notification Power Automate (fire-and-forget) quand une Proforma est créée.
+// Si la requête échoue, la commande est quand même créée — on log juste l'erreur.
+function notifyProformaWebhook(order) {
+  const url = process.env.TEAMS_WEBHOOK_URL;
+  if (!url) return;
+  const payload = {
+    type: order.order_type,
+    orderNumber: order.order_number,
+    client: order.client,
+    cartonType: order.carton_type,
+    cartonCount: order.carton_count,
+    note: order.note,
+    createdBy: order.created_by,
+    createdAt: order.created_at,
+  };
+  // AbortSignal pour ne pas laisser un fetch traîner indéfiniment
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: controller.signal,
+  })
+    .then(r => {
+      if (!r.ok) console.warn(`[teams] webhook HTTP ${r.status}`);
+    })
+    .catch(err => console.warn('[teams] webhook failed:', err.message))
+    .finally(() => clearTimeout(timeout));
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const { search, date, type } = req.query;
@@ -60,6 +91,11 @@ router.post('/', async (req, res, next) => {
        RETURNING *`,
       [id, orderType, orderNumber, client, cartonType || null, count, note || null, createdBy],
     );
+
+    if (rows[0].order_type === 'Proforma') {
+      notifyProformaWebhook(rows[0]);
+    }
+
     res.status(201).json({ order: rows[0] });
   } catch (e) { next(e); }
 });
