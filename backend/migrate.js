@@ -47,6 +47,21 @@ const SCHEMA = `
     changed_by TEXT NOT NULL,
     changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  CREATE TABLE IF NOT EXISTS todos (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    details TEXT,
+    due_date DATE,
+    requested_by TEXT,
+    done BOOLEAN NOT NULL DEFAULT FALSE,
+    created_by TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_todos_done ON todos(done);
+  CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
 `;
 
 export async function migrate() {

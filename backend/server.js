@@ -4,6 +4,7 @@ import cors from 'cors';
 import { migrate, ensureDefaultAdmin } from './migrate.js';
 import authRoutes from './routes/auth.routes.js';
 import ordersRoutes from './routes/orders.routes.js';
+import todosRoutes from './routes/todos.routes.js';
 
 if (!process.env.JWT_SECRET) {
   console.error('[fatal] JWT_SECRET manquant. Copiez .env.example en .env');
@@ -30,6 +31,7 @@ app.use(express.json({ limit: '2mb' }));
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/todos', todosRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

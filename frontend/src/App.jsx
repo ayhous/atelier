@@ -4,6 +4,7 @@ import { api, getUser, clearSession } from './api.js';
 import { printLabelHTML } from './label.js';
 import Login from './Login.jsx';
 import Avatar from './Avatar.jsx';
+import Todos from './Todos.jsx';
 
 const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
 const ORDER_TYPES = ['Zone 53', 'Proforma'];
@@ -35,6 +36,10 @@ export default function App() {
   const [showAdmin, setShowAdmin] = useState(false);
   const [avatars, setAvatars] = useState({});
   const [detailOrder, setDetailOrder] = useState(null);
+  const [activeTab, setActiveTab] = useState('orders');
+
+  const isAtelier = user?.role === 'atelier';
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => { if (user) { refresh(); refreshAvatars(); } }, [user]);
   useEffect(() => {
@@ -159,7 +164,7 @@ export default function App() {
       <header>
         <h1>Traçabilité Zone 53</h1>
         <div className="actions">
-          {user.role === 'admin' && (
+          {isAdmin && (
             <>
               <button onClick={exportToXlsx}>Exporter Excel</button>
               <button onClick={exportToCsv}>Exporter CSV</button>
@@ -178,7 +183,25 @@ export default function App() {
         </div>
       </header>
 
-      <main>
+      {isAdmin && (
+        <nav className="tabs">
+          <button
+            className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
+            onClick={() => setActiveTab('orders')}
+          >Commandes</button>
+          <button
+            className={`tab ${activeTab === 'todos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('todos')}
+          >Todos</button>
+        </nav>
+      )}
+
+      <main className={isAtelier ? 'view-atelier' : ''}>
+        {isAdmin && activeTab === 'todos' && (
+          <Todos avatars={avatars} />
+        )}
+
+        {(!isAdmin || activeTab === 'orders') && !isAtelier && (
         <section className="form">
           <h2>Nouvelle commande</h2>
           <form onSubmit={addOrder}>
@@ -236,7 +259,9 @@ export default function App() {
             </button>
           </form>
         </section>
+        )}
 
+        {(!isAdmin || activeTab === 'orders') && (
         <section className="history">
           <div className="filters">
             <input
@@ -300,6 +325,10 @@ export default function App() {
                             onChange={e => setEditingNoteValue(e.target.value)} />
                           <button onClick={() => saveNote(o.id)}>OK</button>
                         </>
+                      ) : isAtelier ? (
+                        <span className="note-readonly">
+                          {o.note || <i>—</i>}
+                        </span>
                       ) : (
                         <span onClick={() => {
                           setEditingNoteId(o.id);
@@ -318,6 +347,7 @@ export default function App() {
             </table>
           </div>
         </section>
+        )}
 
         {showAdmin && (
           <AdminPanel
@@ -536,6 +566,7 @@ function AdminPanel({ onClose, currentUserId, onUsersChanged }) {
               >
                 <option value="user">Utilisateur</option>
                 <option value="admin">Admin</option>
+                <option value="atelier">Atelier (lecture seule)</option>
               </select>
             </label>
             <label>

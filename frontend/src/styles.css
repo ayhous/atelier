@@ -167,6 +167,10 @@ section h2 {
   background: rgba(16,185,129,0.12); color: #6ee7b7;
   border: 1px solid rgba(16,185,129,0.3);
 }
+.role-atelier {
+  background: rgba(245,158,11,0.12); color: #fbbf24;
+  border: 1px solid rgba(245,158,11,0.3);
+}
 .self-tag {
   margin-left: 6px; padding: 1px 6px; font-size: 9px;
   background: rgba(245,158,11,0.15); color: #fbbf24;
@@ -607,4 +611,209 @@ input, select, textarea { color-scheme: dark; }
   .detail-grid { grid-template-columns: 1fr; }
   .history-line { grid-template-columns: 22px 1fr; }
   .history-time { grid-column: 1 / -1; padding-left: 32px; }
+}
+
+/* ==========================================================================
+   Tabs (Commandes / Todos) — admin
+   ========================================================================== */
+.tabs {
+  display: flex; gap: 4px;
+  padding: 0 4px; margin-bottom: 16px;
+  border-bottom: 1px solid #1f2a44;
+}
+.tab {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 10px 16px;
+  font-size: 14px; font-weight: 500;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.tab:hover { color: #e6ecf5; background: transparent; }
+.tab.active {
+  color: #f1f5f9;
+  border-bottom-color: #3b82f6;
+}
+.tab:focus-visible {
+  outline: 2px solid #60a5fa; outline-offset: -2px;
+}
+
+/* Vue atelier : table en pleine largeur (pas de formulaire) */
+main.view-atelier { grid-template-columns: 1fr; }
+.note-readonly { color: #cbd5e1; cursor: default; }
+
+/* ==========================================================================
+   Todos
+   ========================================================================== */
+.todos-section {
+  grid-column: 1 / -1;
+  display: flex; flex-direction: column; gap: 20px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.todo-form-card {
+  background: linear-gradient(180deg, #111a2e 0%, #0f1729 100%);
+  border: 1px solid #1f2a44;
+  border-radius: 12px;
+  padding: 20px;
+}
+.todo-form-card h2 {
+  margin: 0 0 14px;
+  font-size: 15px; font-weight: 600;
+  color: #f1f5f9;
+}
+.todo-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.todo-form-grid label {
+  display: flex; flex-direction: column;
+  font-size: 11px; gap: 6px; color: #94a3b8;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.todo-form-grid label.full { grid-column: 1 / -1; }
+.todo-form-grid input,
+.todo-form-grid textarea {
+  padding: 11px 12px; font-size: 14px;
+  background: #0b1220; color: #e6ecf5;
+  border: 1px solid #2a3a5e; border-radius: 8px;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-transform: none; letter-spacing: 0;
+}
+.todo-form-grid input::placeholder,
+.todo-form-grid textarea::placeholder { color: #64748b; }
+.todo-form-grid input:focus,
+.todo-form-grid textarea:focus {
+  outline: none; border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.18);
+}
+.todo-form-actions {
+  display: flex; gap: 10px;
+  margin-top: 4px;
+}
+.todo-form-actions button { padding: 11px 18px; font-size: 13px; }
+@media (max-width: 600px) { .todo-form-grid { grid-template-columns: 1fr; } }
+
+.todos-lists {
+  display: flex; flex-direction: column; gap: 24px;
+}
+.todo-list-section { display: flex; flex-direction: column; gap: 10px; }
+.todo-list-title {
+  margin: 0; font-size: 12px; font-weight: 600;
+  color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em;
+  display: flex; align-items: center; gap: 8px;
+}
+.todo-list-title-done { color: #64748b; }
+.todo-count {
+  background: #16213d;
+  color: #cbd5e1;
+  border: 1px solid #2a3a5e;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.todo-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.todo-list-section .empty {
+  padding: 24px; background: #0f1729;
+  border: 1px dashed #1f2a44; border-radius: 10px;
+  text-align: center; color: #64748b; font-style: italic;
+}
+
+.todo-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 14px;
+  background: linear-gradient(180deg, #111a2e 0%, #0f1729 100%);
+  border: 1px solid #1f2a44;
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color 0.15s;
+}
+.todo-card:hover { border-color: #2a3a5e; }
+.todo-card.is-editing { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+.todo-card.is-done { opacity: 0.6; }
+.todo-card.is-done .todo-title {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+.todo-check {
+  display: flex; align-items: flex-start; padding-top: 2px;
+}
+.todo-check input {
+  width: 20px; height: 20px;
+  accent-color: #10b981;
+  cursor: pointer;
+}
+
+.todo-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.todo-title {
+  font-size: 15px; font-weight: 600;
+  color: #f1f5f9;
+  letter-spacing: -0.005em;
+  word-break: break-word;
+}
+.todo-details {
+  font-size: 13px; color: #cbd5e1;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.todo-meta {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  font-size: 12px; color: #94a3b8;
+  margin-top: 2px;
+}
+.todo-due {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+  font-size: 11px;
+  border: 1px solid;
+}
+.todo-due-neutral, .todo-due-future {
+  background: rgba(148,163,184,0.08);
+  color: #cbd5e1;
+  border-color: rgba(148,163,184,0.25);
+}
+.todo-due-today {
+  background: rgba(245,158,11,0.12);
+  color: #fbbf24;
+  border-color: rgba(245,158,11,0.4);
+  font-weight: 600;
+}
+.todo-due-overdue {
+  background: rgba(239,68,68,0.12);
+  color: #fca5a5;
+  border-color: rgba(239,68,68,0.4);
+  font-weight: 600;
+}
+.todo-requested { color: #cbd5e1; }
+.todo-requested b { color: #f1f5f9; font-weight: 600; }
+.todo-created {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: #64748b; font-size: 11px;
+}
+
+.todo-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.todo-actions button { padding: 6px 12px; font-size: 12px; }
+.danger-ghost:hover {
+  color: #fca5a5 !important;
+  border-color: rgba(239,68,68,0.6) !important;
+  background: rgba(239,68,68,0.08) !important;
+}
+
+@media (max-width: 600px) {
+  .todo-card { grid-template-columns: auto 1fr; }
+  .todo-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }

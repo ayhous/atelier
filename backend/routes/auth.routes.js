@@ -58,6 +58,11 @@ router.get('/avatars', authRequired, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+const VALID_ROLES = ['admin', 'user', 'atelier'];
+function normalizeRole(role) {
+  return VALID_ROLES.includes(role) ? role : 'user';
+}
+
 function validateAvatar(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value !== 'string') throw new Error('Avatar invalide');
@@ -83,7 +88,7 @@ router.post('/users', authRequired, adminOnly, async (req, res, next) => {
     const hash = bcrypt.hashSync(password, 10);
     const { rows } = await pool.query(
       'INSERT INTO users (username, password_hash, display_name, role, avatar) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [username, hash, displayName, role === 'admin' ? 'admin' : 'user', avatarValue]
+      [username, hash, displayName, normalizeRole(role), avatarValue]
     );
     res.status(201).json({ id: rows[0].id });
   } catch (e) { next(e); }
@@ -122,7 +127,7 @@ router.patch('/users/:id', authRequired, adminOnly, async (req, res, next) => {
       updates.push(`display_name = $${i++}`);
       params.push(displayName);
     }
-    if (role && (role === 'admin' || role === 'user')) {
+    if (role && VALID_ROLES.includes(role)) {
       if (id === req.user.id && role !== 'admin') {
         return res.status(400).json({ error: 'Vous ne pouvez pas retirer votre propre rôle admin' });
       }

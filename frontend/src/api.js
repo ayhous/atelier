@@ -63,4 +63,10 @@ export const api = {
   updateOrder: (id, payload) =>
     request(`/api/orders/${id}`, { method: 'PATCH', body: payload }),
   orderHistory: (id) => request(`/api/orders/${id}/history`),
+
+  listTodos: () => request('/api/todos'),
+  createTodo: (payload) => request('/api/todos', { method: 'POST', body: payload }),
+  updateTodo: (id, payload) =>
+    request(`/api/todos/${id}`, { method: 'PATCH', body: payload }),
+  deleteTodo: (id) => request(`/api/todos/${id}`, { method: 'DELETE' }),
 };
