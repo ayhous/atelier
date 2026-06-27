@@ -30,7 +30,7 @@ export default function Todos({ avatars }) {
     setEditingId(t.id);
     setForm({
       title: t.title,
-      dueDate: t.due_date || '',
+      dueDate: normalizeDateInput(t.due_date),
       requestedBy: t.requested_by || '',
       details: t.details || '',
     });
@@ -86,12 +86,12 @@ export default function Todos({ avatars }) {
   }, [todos]);
 
   const visibleTodos = statusTab === 'pending' ? pending : done;
-  const visibleTitle = statusTab === 'pending' ? 'À faire' : 'Faites';
+  const visibleTitle = statusTab === 'pending' ? 'A faire' : 'Faites';
 
   return (
     <section className="todos-section">
       <div className="todo-form-card">
-        <h2>{editingId ? 'Modifier la tâche' : 'Nouvelle tâche'}</h2>
+        <h2>{editingId ? 'Modifier la tache' : 'Nouvelle tache'}</h2>
         <form onSubmit={submit} className="todo-form-grid">
           <label className="full">
             <span>Titre *</span>
@@ -103,7 +103,7 @@ export default function Todos({ avatars }) {
             />
           </label>
           <label>
-            <span>Date d'échéance</span>
+            <span>Date d'echeance</span>
             <input
               type="date"
               value={form.dueDate}
@@ -111,7 +111,7 @@ export default function Todos({ avatars }) {
             />
           </label>
           <label>
-            <span>Demandé par</span>
+            <span>Demande par</span>
             <input
               value={form.requestedBy}
               onChange={e => setForm({ ...form, requestedBy: e.target.value })}
@@ -119,12 +119,12 @@ export default function Todos({ avatars }) {
             />
           </label>
           <label className="full">
-            <span>Détails</span>
+            <span>Details</span>
             <textarea
               rows="2"
               value={form.details}
               onChange={e => setForm({ ...form, details: e.target.value })}
-              placeholder="Contexte, précisions..."
+              placeholder="Contexte, precisions..."
             />
           </label>
 
@@ -132,7 +132,7 @@ export default function Todos({ avatars }) {
 
           <div className="todo-form-actions full">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? '...' : editingId ? 'Enregistrer' : 'Ajouter la tâche'}
+              {busy ? '...' : editingId ? 'Enregistrer' : 'Ajouter la tache'}
             </button>
             {editingId && (
               <button type="button" className="ghost" onClick={cancelEdit}>Annuler</button>
@@ -142,13 +142,13 @@ export default function Todos({ avatars }) {
       </div>
 
       <div className="todos-lists">
-        <div className="todo-status-tabs" role="tablist" aria-label="Statut des tâches">
+        <div className="todo-status-tabs" role="tablist" aria-label="Statut des taches">
           <button
             type="button"
             className={`todo-status-tab ${statusTab === 'pending' ? 'active' : ''}`}
             onClick={() => setStatusTab('pending')}
           >
-            À faire <span>{pending.length}</span>
+            A faire <span>{pending.length}</span>
           </button>
           <button
             type="button"
@@ -165,7 +165,7 @@ export default function Todos({ avatars }) {
           </h3>
           {visibleTodos.length === 0 ? (
             <p className="empty">
-              {statusTab === 'pending' ? 'Rien à faire.' : 'Aucune tâche faite.'}
+              {statusTab === 'pending' ? 'Rien a faire.' : 'Aucune tache faite.'}
             </p>
           ) : (
             <ul className="todo-list">
@@ -189,7 +189,9 @@ export default function Todos({ avatars }) {
 }
 
 function TodoCard({ todo, avatars, onToggle, onEdit, onDelete, isEditing }) {
-  const dueStatus = getDueStatus(todo.due_date, todo.done);
+  const dueDate = normalizeDateInput(todo.due_date);
+  const dueStatus = getDueStatus(dueDate, todo.done);
+
   return (
     <li className={`todo-card ${todo.done ? 'is-done' : ''} ${isEditing ? 'is-editing' : ''}`}>
       <label className="todo-check">
@@ -199,15 +201,15 @@ function TodoCard({ todo, avatars, onToggle, onEdit, onDelete, isEditing }) {
         <div className="todo-title">{todo.title}</div>
         {todo.details && <div className="todo-details">{todo.details}</div>}
         <div className="todo-meta">
-          {todo.due_date && (
+          {dueDate && (
             <span className={`todo-due todo-due-${dueStatus}`}>
-              {formatDateShort(todo.due_date)}
-              {dueStatus === 'overdue' && ' · en retard'}
-              {dueStatus === 'today' && ' · aujourd\'hui'}
+              {formatDateShort(dueDate)}
+              {dueStatus === 'overdue' && ' - en retard'}
+              {dueStatus === 'today' && " - aujourd'hui"}
             </span>
           )}
           {todo.requested_by && (
-            <span className="todo-requested">Demandé par <b>{todo.requested_by}</b></span>
+            <span className="todo-requested">Demande par <b>{todo.requested_by}</b></span>
           )}
           <span className="todo-created">
             <Avatar name={todo.created_by} avatar={avatars[todo.created_by]} size={16} />
@@ -223,20 +225,36 @@ function TodoCard({ todo, avatars, onToggle, onEdit, onDelete, isEditing }) {
   );
 }
 
+function normalizeDateInput(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
 function getDueStatus(dueDate, done) {
   if (!dueDate || done) return 'neutral';
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const due = new Date(dueDate + 'T00:00:00');
-  if (isNaN(due)) return 'neutral';
+  const due = parseLocalDate(dueDate);
+  if (!due) return 'neutral';
   if (due < today) return 'overdue';
   if (due.getTime() === today.getTime()) return 'today';
   return 'future';
 }
 
-function formatDateShort(iso) {
-  if (!iso) return '';
-  const d = new Date(iso + 'T00:00:00');
-  if (isNaN(d)) return iso;
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function parseLocalDate(isoDate) {
+  const [year, month, day] = normalizeDateInput(isoDate).split('-').map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function formatDateShort(isoDate) {
+  const date = parseLocalDate(isoDate);
+  if (!date) return isoDate || '';
+  return new Intl.DateTimeFormat('fr-BE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
 }
