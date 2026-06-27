@@ -162,7 +162,7 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Traçabilité Zone 53</h1>
+        <h1>Logistique Zone 53</h1>
         <div className="actions">
           {isAdmin && (
             <>
@@ -183,7 +183,7 @@ export default function App() {
         </div>
       </header>
 
-      {isAdmin && (
+      {user && (
         <nav className="tabs">
           <button
             className={`tab ${activeTab === 'orders' ? 'active' : ''}`}
@@ -196,12 +196,12 @@ export default function App() {
         </nav>
       )}
 
-      <main className={isAtelier ? 'view-atelier' : ''}>
-        {isAdmin && activeTab === 'todos' && (
+      <main className={isAtelier || activeTab === 'todos' ? 'view-atelier' : ''}>
+        {activeTab === 'todos' && (
           <Todos avatars={avatars} />
         )}
 
-        {(!isAdmin || activeTab === 'orders') && !isAtelier && (
+        {activeTab === 'orders' && !isAtelier && (
         <section className="form">
           <h2>Nouvelle commande</h2>
           <form onSubmit={addOrder}>
@@ -261,7 +261,7 @@ export default function App() {
         </section>
         )}
 
-        {(!isAdmin || activeTab === 'orders') && (
+        {activeTab === 'orders' && (
         <section className="history">
           <div className="filters">
             <input

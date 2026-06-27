@@ -650,7 +650,7 @@ main.view-atelier { grid-template-columns: 1fr; }
    ========================================================================== */
 .todos-section {
   grid-column: 1 / -1;
-  display: flex; flex-direction: column; gap: 20px;
+  display: grid; grid-template-columns: 380px 1fr; gap: 16px;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -702,7 +702,46 @@ main.view-atelier { grid-template-columns: 1fr; }
 @media (max-width: 600px) { .todo-form-grid { grid-template-columns: 1fr; } }
 
 .todos-lists {
-  display: flex; flex-direction: column; gap: 24px;
+  display: flex; flex-direction: column; gap: 14px;
+  min-width: 0;
+}
+.todo-status-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  padding: 4px;
+  background: #0b1220;
+  border: 1px solid #1f2a44;
+  border-radius: 8px;
+}
+.todo-status-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.todo-status-tab:hover {
+  background: #16213d;
+  color: #e6ecf5;
+}
+.todo-status-tab.active {
+  background: rgba(59,130,246,0.14);
+  color: #f1f5f9;
+  border-color: rgba(59,130,246,0.45);
+}
+.todo-status-tab span {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #16213d;
+  color: #cbd5e1;
+  font-size: 11px;
+  text-align: center;
 }
 .todo-list-section { display: flex; flex-direction: column; gap: 10px; }
 .todo-list-title {
@@ -813,7 +852,13 @@ main.view-atelier { grid-template-columns: 1fr; }
   background: rgba(239,68,68,0.08) !important;
 }
 
+@media (max-width: 1100px) {
+  .todos-section { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 600px) {
+  .todo-status-tabs { width: 100%; }
+  .todo-status-tab { flex: 1; justify-content: center; }
   .todo-card { grid-template-columns: auto 1fr; }
   .todo-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }

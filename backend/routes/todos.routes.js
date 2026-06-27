@@ -1,23 +1,29 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
-import { authRequired, adminOnly } from '../middleware/auth.js';
+import { authRequired } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authRequired);
-router.use(adminOnly);
+
+function todoOwnerParams(req) {
+  return [req.user.id, req.user.displayName || req.user.username];
+}
+
+const TODO_OWNER_WHERE = `(user_id = $1 OR (user_id IS NULL AND created_by = $2))`;
 
 // Liste : pas faits d'abord (par échéance), puis faits (récents en premier)
 router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT * FROM todos
+      WHERE ${TODO_OWNER_WHERE}
       ORDER BY
         done ASC,
         (CASE WHEN done = FALSE AND due_date IS NULL THEN 1 ELSE 0 END) ASC,
         due_date ASC NULLS LAST,
         created_at DESC
       LIMIT 500
-    `);
+    `, todoOwnerParams(req));
     res.json({ todos: rows });
   } catch (e) { next(e); }
 });
@@ -30,10 +36,10 @@ router.post('/', async (req, res, next) => {
 
     const createdBy = req.user.displayName || req.user.username;
     const { rows } = await pool.query(
-      `INSERT INTO todos (title, details, due_date, requested_by, created_by)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO todos (user_id, title, details, due_date, requested_by, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [cleanTitle, details || null, dueDate || null, requestedBy || null, createdBy],
+      [req.user.id, cleanTitle, details || null, dueDate || null, requestedBy || null, createdBy],
     );
     res.status(201).json({ todo: rows[0] });
   } catch (e) { next(e); }
@@ -42,7 +48,10 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const existingResult = await pool.query('SELECT * FROM todos WHERE id = $1', [id]);
+    const existingResult = await pool.query(
+      `SELECT * FROM todos WHERE id = $3 AND ${TODO_OWNER_WHERE}`,
+      [...todoOwnerParams(req), id],
+    );
     const existing = existingResult.rows[0];
     if (!existing) return res.status(404).json({ error: 'Tâche introuvable' });
 
@@ -88,9 +97,11 @@ router.patch('/:id', async (req, res, next) => {
 
     if (!updates.length) return res.json({ todo: existing });
 
-    params.push(id);
+    params.push(id, ...todoOwnerParams(req));
     const { rows } = await pool.query(
-      `UPDATE todos SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+      `UPDATE todos SET ${updates.join(', ')}
+       WHERE id = $${i++} AND (user_id = $${i++} OR (user_id IS NULL AND created_by = $${i}))
+       RETURNING *`,
       params,
     );
     res.json({ todo: rows[0] });
@@ -100,7 +111,10 @@ router.patch('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const result = await pool.query('DELETE FROM todos WHERE id = $1', [id]);
+    const result = await pool.query(
+      `DELETE FROM todos WHERE id = $3 AND ${TODO_OWNER_WHERE}`,
+      [...todoOwnerParams(req), id],
+    );
     if (!result.rowCount) return res.status(404).json({ error: 'Tâche introuvable' });
     res.json({ ok: true });
   } catch (e) { next(e); }

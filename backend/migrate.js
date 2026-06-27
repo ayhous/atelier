@@ -50,6 +50,7 @@ const SCHEMA = `
 
   CREATE TABLE IF NOT EXISTS todos (
     id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     details TEXT,
     due_date DATE,
@@ -60,6 +61,13 @@ const SCHEMA = `
     completed_at TIMESTAMPTZ
   );
 
+  ALTER TABLE todos ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;
+  UPDATE todos t
+  SET user_id = u.id
+  FROM users u
+  WHERE t.user_id IS NULL AND t.created_by = u.display_name;
+
+  CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);
   CREATE INDEX IF NOT EXISTS idx_todos_done ON todos(done);
   CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
 `;

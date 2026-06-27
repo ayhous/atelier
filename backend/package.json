@@ -1,7 +1,7 @@
 {
   "name": "zone53-backend",
   "version": "1.0.0",
-  "description": "API traçabilité Zone 53 (Postgres)",
+  "description": "API logistique Zone 53 (Postgres)",
   "type": "module",
   "main": "server.js",
   "scripts": {

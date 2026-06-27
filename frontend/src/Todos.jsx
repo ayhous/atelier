@@ -13,6 +13,7 @@ export default function Todos({ avatars }) {
   const [todos, setTodos] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
+  const [statusTab, setStatusTab] = useState('pending');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -84,6 +85,9 @@ export default function Todos({ avatars }) {
     return { pending: p, done: d };
   }, [todos]);
 
+  const visibleTodos = statusTab === 'pending' ? pending : done;
+  const visibleTitle = statusTab === 'pending' ? 'À faire' : 'Faites';
+
   return (
     <section className="todos-section">
       <div className="todo-form-card">
@@ -111,7 +115,7 @@ export default function Todos({ avatars }) {
             <input
               value={form.requestedBy}
               onChange={e => setForm({ ...form, requestedBy: e.target.value })}
-              placeholder="ex: Patron, Marie, Client X…"
+              placeholder="ex: Patron, Marie, Client X..."
             />
           </label>
           <label className="full">
@@ -120,7 +124,7 @@ export default function Todos({ avatars }) {
               rows="2"
               value={form.details}
               onChange={e => setForm({ ...form, details: e.target.value })}
-              placeholder="Contexte, précisions…"
+              placeholder="Contexte, précisions..."
             />
           </label>
 
@@ -128,7 +132,7 @@ export default function Todos({ avatars }) {
 
           <div className="todo-form-actions full">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? '…' : editingId ? 'Enregistrer' : 'Ajouter la tâche'}
+              {busy ? '...' : editingId ? 'Enregistrer' : 'Ajouter la tâche'}
             </button>
             {editingId && (
               <button type="button" className="ghost" onClick={cancelEdit}>Annuler</button>
@@ -138,15 +142,34 @@ export default function Todos({ avatars }) {
       </div>
 
       <div className="todos-lists">
+        <div className="todo-status-tabs" role="tablist" aria-label="Statut des tâches">
+          <button
+            type="button"
+            className={`todo-status-tab ${statusTab === 'pending' ? 'active' : ''}`}
+            onClick={() => setStatusTab('pending')}
+          >
+            À faire <span>{pending.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`todo-status-tab ${statusTab === 'done' ? 'active' : ''}`}
+            onClick={() => setStatusTab('done')}
+          >
+            Faites <span>{done.length}</span>
+          </button>
+        </div>
+
         <div className="todo-list-section">
           <h3 className="todo-list-title">
-            À faire <span className="todo-count">{pending.length}</span>
+            {visibleTitle} <span className="todo-count">{visibleTodos.length}</span>
           </h3>
-          {pending.length === 0 ? (
-            <p className="empty">Rien à faire — bien joué.</p>
+          {visibleTodos.length === 0 ? (
+            <p className="empty">
+              {statusTab === 'pending' ? 'Rien à faire.' : 'Aucune tâche faite.'}
+            </p>
           ) : (
             <ul className="todo-list">
-              {pending.map(t => (
+              {visibleTodos.map(t => (
                 <TodoCard
                   key={t.id}
                   todo={t}
@@ -160,27 +183,6 @@ export default function Todos({ avatars }) {
             </ul>
           )}
         </div>
-
-        {done.length > 0 && (
-          <div className="todo-list-section">
-            <h3 className="todo-list-title todo-list-title-done">
-              Fait <span className="todo-count">{done.length}</span>
-            </h3>
-            <ul className="todo-list">
-              {done.map(t => (
-                <TodoCard
-                  key={t.id}
-                  todo={t}
-                  avatars={avatars}
-                  onToggle={() => toggleDone(t)}
-                  onEdit={() => startEdit(t)}
-                  onDelete={() => remove(t)}
-                  isEditing={editingId === t.id}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -199,7 +201,7 @@ function TodoCard({ todo, avatars, onToggle, onEdit, onDelete, isEditing }) {
         <div className="todo-meta">
           {todo.due_date && (
             <span className={`todo-due todo-due-${dueStatus}`}>
-              📅 {formatDateShort(todo.due_date)}
+              {formatDateShort(todo.due_date)}
               {dueStatus === 'overdue' && ' · en retard'}
               {dueStatus === 'today' && ' · aujourd\'hui'}
             </span>
