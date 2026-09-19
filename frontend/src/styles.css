@@ -983,3 +983,188 @@ main.view-atelier { grid-template-columns: 1fr; }
   .todo-card { grid-template-columns: auto 1fr; }
   .todo-actions { grid-column: 1 / -1; justify-content: flex-end; }
 }
+
+/* ==========================================================================
+   MOBILE — refonte complète du layout sur téléphone
+   ========================================================================== */
+
+/* Empêche le zoom auto de iOS Safari sur les inputs (fonts >= 16px) */
+@media (max-width: 900px) {
+  .form input, .form select, .form textarea,
+  .filters input, .filters select,
+  .login-card input,
+  .user-form-grid input, .user-form-grid select,
+  .todo-form-grid input, .todo-form-grid textarea,
+  .input-with-scan input {
+    font-size: 16px;
+  }
+}
+
+/* Téléphones — portrait et paysage */
+@media (max-width: 640px) {
+  /* Padding général : plus compact et safe-area pour iPhone à encoche */
+  .app {
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+    max-width: 100%;
+  }
+
+  /* HEADER : titre plus petit, actions sur ligne suivante */
+  header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+  }
+  header h1 {
+    font-size: 17px;
+    text-align: left;
+  }
+  .actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .actions button { padding: 8px 12px; font-size: 12px; }
+  .user-pill {
+    order: -1;
+    align-self: stretch;
+    justify-content: flex-start;
+    padding: 4px 12px 4px 4px;
+  }
+
+  /* Tabs pleine largeur, gros boutons tactiles */
+  .tabs {
+    margin: 0 0 12px;
+    padding: 0;
+    gap: 0;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  /* Sections : padding plus compact */
+  section {
+    padding: 14px;
+    border-radius: 10px;
+  }
+  section h2 { font-size: 14px; margin-bottom: 12px; }
+
+  /* MAIN : déjà en 1 colonne via @1100 — plus de gap */
+  main { gap: 12px; }
+
+  /* FORM : tout en 1 colonne, inputs et boutons plus grands (tactile) */
+  .form form { grid-template-columns: 1fr; gap: 10px; }
+  .form label { font-size: 11px; }
+  .form input, .form select, .form textarea {
+    padding: 12px 14px;
+  }
+  .form button.big { padding: 15px; font-size: 15px; }
+  .type-buttons { grid-template-columns: 1fr 1fr; }
+  .type-btn { padding: 14px; font-size: 15px; }
+
+  /* Bouton Scanner : plus visible et empilé sous input si nécessaire */
+  .input-with-scan { flex-direction: column; gap: 8px; }
+  .scan-btn {
+    padding: 12px;
+    font-size: 15px;
+    width: 100%;
+  }
+
+  /* FILTRES : ligne pour recherche, ligne pour selects */
+  .filters { gap: 8px; margin-bottom: 12px; }
+  .filters input[type=text], .filters > input[placeholder] {
+    min-width: 100%;
+    padding: 12px 14px;
+  }
+  .filters select, .filters input[type=date] {
+    flex: 1; min-width: 0;
+    padding: 12px 10px;
+  }
+  .filters .count {
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: right;
+    font-size: 11px;
+  }
+
+  /* TABLE : réduire padding, garder lisible */
+  .table-wrap { max-height: 60vh; }
+  th, td { padding: 8px 10px; font-size: 12px; }
+  th { font-size: 10px; }
+  .th-detail { padding-left: 10px !important; }
+  .td-detail { padding-left: 10px !important; }
+  .btn-detail { width: 28px; height: 28px; font-size: 14px; }
+  .type-badge { font-size: 9px; padding: 2px 7px; }
+
+  /* MODALS : plein écran sur mobile */
+  .modal-backdrop { padding: 0; align-items: stretch; }
+  .modal {
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-header { padding: 14px 16px; }
+  .modal-header h3 { font-size: 16px; }
+  .detail-body { padding: 16px 16px 12px; gap: 16px; }
+  .detail-footer {
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .detail-footer button { flex: 1; padding: 13px; }
+
+  /* Modal Admin Utilisateurs */
+  .user-form-card { margin: 14px 16px; padding: 16px; }
+  .users-list-title { margin: 16px 16px 8px; }
+  .users-table {
+    margin: 0 16px 16px;
+    width: calc(100% - 32px);
+    font-size: 12px;
+  }
+  .users-table th, .users-table td { padding: 8px 10px; font-size: 12px; }
+
+  /* Login card : padding compact */
+  .login-card {
+    padding: 24px 20px;
+    max-width: 100%;
+    border-radius: 12px;
+  }
+  .login-card h1 { font-size: 24px; }
+
+  /* Todos : padding compact */
+  .todo-form-card { padding: 16px; }
+  .todo-card { padding: 12px; gap: 10px; }
+  .todo-title { font-size: 14px; }
+  .todo-details { font-size: 12px; }
+  .todo-meta { gap: 8px; font-size: 11px; }
+  .todo-actions { gap: 4px; }
+  .todo-actions button { padding: 5px 9px; font-size: 11px; }
+
+  /* Note : cliquable plus visible en mobile */
+  .note span { padding: 4px 0; min-height: 26px; }
+  .note textarea { font-size: 14px; }
+
+  /* Boutons ligne (Modifier/Suppr.) : plus tactiles */
+  .row-actions button { padding: 6px 10px; font-size: 11px; }
+}
+
+/* iPhone paysage / très petits écrans */
+@media (max-width: 400px) {
+  header h1 { font-size: 15px; }
+  .actions button { padding: 7px 10px; font-size: 11px; }
+  .type-btn { padding: 12px; font-size: 14px; }
+}
+
+/* Tablette portrait / paysage */
+@media (min-width: 641px) and (max-width: 1099px) {
+  .app { padding: 16px; }
+  section { padding: 18px; }
+  .form form { grid-template-columns: 1fr 1fr; }
+  main { gap: 14px; }
+}
