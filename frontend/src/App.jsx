@@ -6,6 +6,7 @@ import Login from './Login.jsx';
 import Avatar from './Avatar.jsx';
 import Todos from './Todos.jsx';
 import BarcodeScanner from './BarcodeScanner.jsx';
+import { extractLabelFields } from './ocr.js';
 
 const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
 const ORDER_TYPES = ['Zone 53', 'Proforma'];
@@ -39,6 +40,7 @@ export default function App() {
   const [detailOrder, setDetailOrder] = useState(null);
   const [activeTab, setActiveTab] = useState('orders');
   const [showScanner, setShowScanner] = useState(false);
+  const [ocrStatus, setOcrStatus] = useState(null); // null | 'running' | 'done' | 'failed'
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -206,6 +208,13 @@ export default function App() {
         {activeTab === 'orders' && !isAtelier && (
         <section className="form">
           <h2>Nouvelle commande</h2>
+          {ocrStatus && (
+            <div className={`ocr-banner ocr-banner-${ocrStatus}`}>
+              {ocrStatus === 'running' && '🔍 Lecture du texte de l\'étiquette…'}
+              {ocrStatus === 'done' && '✓ Client / référence détectés (vérifie et corrige si besoin)'}
+              {ocrStatus === 'failed' && '⚠ Texte illisible — tape client et référence à la main'}
+            </div>
+          )}
           <form onSubmit={addOrder}>
             <div className="type-selector full">
               <span className="label-small">Type</span>
@@ -378,9 +387,8 @@ export default function App() {
 
         {showScanner && (
           <BarcodeScanner
-            onDetect={(value) => {
+            onDetect={(value, imageDataUrl) => {
               // Format "enrichi" : orderNumber|client|note (séparateur "|")
-              // Si le barcode ne contient qu'une valeur, on remplit juste orderNumber.
               const parts = value.split('|').map(s => s.trim()).filter(Boolean);
               setForm(prev => ({
                 ...prev,
@@ -389,6 +397,30 @@ export default function App() {
                 ...(parts[2] ? { note: parts[2] } : {}),
               }));
               setShowScanner(false);
+
+              // OCR async pour extraire Delivery address / Your reference
+              // Seulement si le barcode ne contenait pas déjà ces infos
+              if (imageDataUrl && parts.length < 2) {
+                setOcrStatus('running');
+                extractLabelFields(imageDataUrl)
+                  .then(({ client, reference }) => {
+                    if (!client && !reference) {
+                      setOcrStatus('failed');
+                    } else {
+                      setForm(prev => ({
+                        ...prev,
+                        client: prev.client || client || prev.client,
+                        note: prev.note || reference || prev.note,
+                      }));
+                      setOcrStatus('done');
+                    }
+                    setTimeout(() => setOcrStatus(null), 2500);
+                  })
+                  .catch(() => {
+                    setOcrStatus('failed');
+                    setTimeout(() => setOcrStatus(null), 2500);
+                  });
+              }
             }}
             onClose={() => setShowScanner(false)}
           />

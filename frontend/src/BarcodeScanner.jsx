@@ -41,7 +41,19 @@ export default function BarcodeScanner({ onDetect, onClose }) {
         { facingMode: { ideal: 'environment' } },
         config,
         (decodedText) => {
-          onDetect(decodedText.trim());
+          // Capture aussi une frame vidéo pour l'OCR côté App
+          let imageDataUrl = null;
+          try {
+            const video = document.querySelector(`#${REGION_ID} video`);
+            if (video && video.videoWidth) {
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              canvas.getContext('2d').drawImage(video, 0, 0);
+              imageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            }
+          } catch { /* frame capture optionnelle */ }
+          onDetect(decodedText.trim(), imageDataUrl);
         },
         () => { /* ignore les erreurs par frame */ },
       )

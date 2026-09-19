@@ -421,6 +421,33 @@ tbody tr:last-child td { border-bottom: none; }
 input, select, textarea { color-scheme: dark; }
 
 /* ==========================================================================
+   Bandeau OCR "lecture en cours / résultat"
+   ========================================================================== */
+.ocr-banner {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 500;
+  border: 1px solid;
+  display: flex; align-items: center; gap: 6px;
+}
+.ocr-banner-running {
+  background: rgba(59,130,246,0.10);
+  color: #93c5fd;
+  border-color: rgba(59,130,246,0.3);
+}
+.ocr-banner-done {
+  background: rgba(16,185,129,0.10);
+  color: #6ee7b7;
+  border-color: rgba(16,185,129,0.3);
+}
+.ocr-banner-failed {
+  background: rgba(245,158,11,0.10);
+  color: #fbbf24;
+  border-color: rgba(245,158,11,0.3);
+}
+
+/* ==========================================================================
    Bouton Scanner (mobile-friendly) accolé au champ N° commande
    ========================================================================== */
 .input-with-scan {
