@@ -5,6 +5,7 @@ import { printLabelHTML } from './label.js';
 import Login from './Login.jsx';
 import Avatar from './Avatar.jsx';
 import Todos from './Todos.jsx';
+import BarcodeScanner from './BarcodeScanner.jsx';
 
 const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
 const ORDER_TYPES = ['Zone 53', 'Proforma'];
@@ -37,6 +38,7 @@ export default function App() {
   const [avatars, setAvatars] = useState({});
   const [detailOrder, setDetailOrder] = useState(null);
   const [activeTab, setActiveTab] = useState('orders');
+  const [showScanner, setShowScanner] = useState(false);
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -220,12 +222,21 @@ export default function App() {
             </div>
 
             <label className="full">N° commande *
-              <input
-                name="orderNumber"
-                value={form.orderNumber}
-                onChange={e => update('orderNumber', e.target.value)}
-                autoFocus
-              />
+              <div className="input-with-scan">
+                <input
+                  name="orderNumber"
+                  value={form.orderNumber}
+                  onChange={e => update('orderNumber', e.target.value)}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="scan-btn"
+                  onClick={() => setShowScanner(true)}
+                  title="Scanner un code-barres avec la caméra"
+                  aria-label="Scanner"
+                >📷 Scanner</button>
+              </div>
             </label>
             <label className="full">Client *
               <input
@@ -362,6 +373,16 @@ export default function App() {
             order={detailOrder}
             avatars={avatars}
             onClose={() => setDetailOrder(null)}
+          />
+        )}
+
+        {showScanner && (
+          <BarcodeScanner
+            onDetect={(value) => {
+              update('orderNumber', value);
+              setShowScanner(false);
+            }}
+            onClose={() => setShowScanner(false)}
           />
         )}
       </main>

@@ -421,6 +421,100 @@ tbody tr:last-child td { border-bottom: none; }
 input, select, textarea { color-scheme: dark; }
 
 /* ==========================================================================
+   Bouton Scanner (mobile-friendly) accolé au champ N° commande
+   ========================================================================== */
+.input-with-scan {
+  display: flex; gap: 8px; align-items: stretch;
+}
+.input-with-scan input {
+  flex: 1; min-width: 0;
+}
+.scan-btn {
+  flex-shrink: 0;
+  background: #16213d;
+  color: #93c5fd;
+  border: 1px solid #2a3a5e;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 4px;
+  transition: all 0.15s;
+}
+.scan-btn:hover {
+  background: rgba(59,130,246,0.15);
+  border-color: #3b82f6;
+  color: #dbeafe;
+}
+.scan-btn:active { transform: translateY(1px); }
+
+@media (max-width: 600px) {
+  .scan-btn {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+  .input-with-scan input {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+}
+
+/* ==========================================================================
+   Modal scanner de code-barres
+   ========================================================================== */
+.modal.modal-scanner {
+  max-width: 520px;
+  overflow: hidden;
+}
+.scanner-body {
+  padding: 0;
+  display: flex; flex-direction: column;
+  background: #000;
+}
+.scanner-region {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  overflow: hidden;
+  position: relative;
+}
+.scanner-region video,
+.scanner-region canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+.scanner-hint {
+  margin: 0;
+  padding: 14px 20px;
+  background: #0f1729;
+  color: #cbd5e1;
+  font-size: 13px;
+  text-align: center;
+  border-top: 1px solid #1f2a44;
+}
+.scanner-error {
+  margin: 0;
+  padding: 14px 20px;
+  background: rgba(239,68,68,0.10);
+  color: #fca5a5;
+  font-size: 13px;
+  border-top: 1px solid rgba(239,68,68,0.3);
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .modal.modal-scanner {
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    max-width: 100%;
+  }
+  .scanner-region { aspect-ratio: auto; flex: 1; }
+}
+
+/* ==========================================================================
    Avatars
    ========================================================================== */
 .avatar-img,
