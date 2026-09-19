@@ -379,7 +379,15 @@ export default function App() {
         {showScanner && (
           <BarcodeScanner
             onDetect={(value) => {
-              update('orderNumber', value);
+              // Format "enrichi" : orderNumber|client|note (séparateur "|")
+              // Si le barcode ne contient qu'une valeur, on remplit juste orderNumber.
+              const parts = value.split('|').map(s => s.trim()).filter(Boolean);
+              setForm(prev => ({
+                ...prev,
+                orderNumber: parts[0] || value,
+                ...(parts[1] ? { client: parts[1] } : {}),
+                ...(parts[2] ? { note: parts[2] } : {}),
+              }));
               setShowScanner(false);
             }}
             onClose={() => setShowScanner(false)}
