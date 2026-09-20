@@ -1401,3 +1401,16 @@ main > *, .form form > *, .form label, .type-buttons > *, .filters > * {
     margin-inline: auto !important;
   }
 }
+
+/* Bouton "Photo de l'étiquette" : lecture code-barres + texte sur une photo */
+.label-photo { display: flex; flex-direction: column; gap: 6px; }
+.label-photo-btn {
+  width: 100%; padding: 12px;
+  background: #16213d; color: #93c5fd;
+  border: 1px dashed #3b4d75; border-radius: 8px;
+  font-size: 14px; font-weight: 600;
+}
+.label-photo-btn:hover:not(:disabled) {
+  background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #dbeafe;
+}
+.label-photo-hint { font-size: 11px; color: #64748b; text-align: center; }

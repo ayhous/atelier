@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { api, getUser, clearSession } from './api.js';
 import { printLabelHTML } from './label.js';
@@ -7,6 +7,7 @@ import Avatar from './Avatar.jsx';
 import Todos from './Todos.jsx';
 import BarcodeScanner from './BarcodeScanner.jsx';
 import { extractLabelFields } from './ocr.js';
+import { decodeBarcodeFromImage } from './labelScan.js';
 
 const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
 const ORDER_TYPES = ['Zone 53', 'Proforma'];
@@ -41,6 +42,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('orders');
   const [showScanner, setShowScanner] = useState(false);
   const [ocrStatus, setOcrStatus] = useState(null); // null | 'running' | 'done' | 'failed'
+  const [ocrDetail, setOcrDetail] = useState('');
+  const labelPhotoRef = useRef(null);
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -49,6 +52,53 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(AUTO_PRINT_KEY, autoPrint ? 'true' : 'false');
   }, [autoPrint]);
+
+  // Photo de l'étiquette : on lit le code-barres ET le texte sur la même image.
+  // Your reference -> N° commande, Delivery address -> Client, code-barres -> Note.
+  async function readLabelPhoto(file) {
+    if (!file) return;
+    setOcrStatus('running');
+    setOcrDetail('');
+
+    const [barcode, fields] = await Promise.all([
+      decodeBarcodeFromImage(file).catch(() => null),
+      extractLabelFields(file).catch(() => ({ client: null, reference: null })),
+    ]);
+    const { client, reference } = fields;
+
+    if (!barcode && !client && !reference) {
+      setOcrStatus('failed');
+      setOcrDetail('Rien de lisible. Reprends la photo bien à plat, étiquette entière et nette.');
+      setTimeout(() => setOcrStatus(null), 5000);
+      return;
+    }
+
+    setForm(prev => ({
+      ...prev,
+      orderNumber: reference || prev.orderNumber,
+      client: client || prev.client,
+      note: barcode || prev.note,
+    }));
+
+    const found = [
+      reference ? 'n° commande' : null,
+      client ? 'client' : null,
+      barcode ? 'code-barres' : null,
+    ].filter(Boolean);
+    const missing = [
+      reference ? null : 'n° commande',
+      client ? null : 'client',
+      barcode ? null : 'code-barres',
+    ].filter(Boolean);
+
+    setOcrStatus(missing.length ? 'failed' : 'done');
+    setOcrDetail(
+      missing.length
+        ? `Lu : ${found.join(', ')}. À compléter à la main : ${missing.join(', ')}.`
+        : 'Vérifie les valeurs avant d\'ajouter.'
+    );
+    setTimeout(() => setOcrStatus(null), missing.length ? 5000 : 3000);
+  }
 
   async function refresh() {
     try {
@@ -210,9 +260,9 @@ export default function App() {
           <h2>Nouvelle commande</h2>
           {ocrStatus && (
             <div className={`ocr-banner ocr-banner-${ocrStatus}`}>
-              {ocrStatus === 'running' && '🔍 Lecture du texte de l\'étiquette…'}
-              {ocrStatus === 'done' && '✓ Client / référence détectés (vérifie et corrige si besoin)'}
-              {ocrStatus === 'failed' && '⚠ Texte illisible — tape client et référence à la main'}
+              {ocrStatus === 'running' && '🔍 Lecture de l\'étiquette… (quelques secondes)'}
+              {ocrStatus === 'done' && `✓ Étiquette lue. ${ocrDetail}`}
+              {ocrStatus === 'failed' && `⚠ ${ocrDetail}`}
             </div>
           )}
           <form onSubmit={addOrder}>
@@ -250,6 +300,31 @@ export default function App() {
                 </button>
               </div>
             </label>
+            <div className="full label-photo">
+              <button
+                type="button"
+                className="label-photo-btn"
+                onClick={() => labelPhotoRef.current?.click()}
+                disabled={ocrStatus === 'running'}
+              >
+                🏷️ Photo de l'étiquette
+              </button>
+              <span className="label-photo-hint">
+                Remplit n° commande, client et code-barres d'un coup
+              </span>
+              <input
+                ref={labelPhotoRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  readLabelPhoto(file);
+                }}
+              />
+            </div>
             <label className="full">Client *
               <input
                 value={form.client}
@@ -390,40 +465,11 @@ export default function App() {
 
         {showScanner && (
           <BarcodeScanner
-            onDetect={(value, imageDataUrl) => {
-              // Format "enrichi" : orderNumber|client|note (séparateur "|")
-              const parts = value.split('|').map(s => s.trim()).filter(Boolean);
-              setForm(prev => ({
-                ...prev,
-                orderNumber: parts[0] || value,
-                ...(parts[1] ? { client: parts[1] } : {}),
-                ...(parts[2] ? { note: parts[2] } : {}),
-              }));
+            onDetect={(value) => {
+              // Le code-barres du carton va dans la Note ; le n° de commande
+              // vient de "Your reference" (photo de l'étiquette) ou de la saisie.
+              setForm(prev => ({ ...prev, note: value }));
               setShowScanner(false);
-
-              // OCR async pour extraire Delivery address / Your reference
-              // Seulement si le barcode ne contenait pas déjà ces infos
-              if (imageDataUrl && parts.length < 2) {
-                setOcrStatus('running');
-                extractLabelFields(imageDataUrl)
-                  .then(({ client, reference }) => {
-                    if (!client && !reference) {
-                      setOcrStatus('failed');
-                    } else {
-                      setForm(prev => ({
-                        ...prev,
-                        client: prev.client || client || prev.client,
-                        note: prev.note || reference || prev.note,
-                      }));
-                      setOcrStatus('done');
-                    }
-                    setTimeout(() => setOcrStatus(null), 2500);
-                  })
-                  .catch(() => {
-                    setOcrStatus('failed');
-                    setTimeout(() => setOcrStatus(null), 2500);
-                  });
-              }
             }}
             onClose={() => setShowScanner(false)}
           />
