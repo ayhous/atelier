@@ -475,6 +475,12 @@ input, select, textarea { color-scheme: dark; }
   color: #dbeafe;
 }
 .scan-btn:active { transform: translateY(1px); }
+.scan-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
 
 @media (max-width: 600px) {
   .scan-btn {
@@ -1004,6 +1010,12 @@ html, body {
     max-width: 100%;
     padding: 12px;
     margin: 0;
+    width: 100%;
+  }
+
+  /* Prévient tout élément de dépasser la largeur du conteneur */
+  input, select, textarea, button, .btn, .user-pill, .type-badge, .role-badge {
+    max-width: 100%;
   }
 
   /* MAIN : toujours 1 colonne */
@@ -1012,14 +1024,37 @@ html, body {
     gap: 12px;
   }
 
-  /* HEADER : titre + actions plus compactes */
+  /* HEADER : titre au-dessus, pill utilisateur ensuite, boutons dessous */
   header {
+    flex-direction: column !important;
+    align-items: stretch !important;
     padding-bottom: 12px;
     margin-bottom: 12px;
-    gap: 8px;
+    gap: 10px;
   }
-  header h1 { font-size: 18px; }
-  .actions { gap: 6px; }
+  header h1 {
+    font-size: 18px;
+    text-align: left;
+  }
+  .actions {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    justify-content: stretch;
+  }
+  .actions button {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+  .user-pill {
+    flex: 1 1 100%;
+    order: -1;
+    justify-content: flex-start;
+  }
 
   /* FORM : toujours 1 colonne, pas de 2×fr */
   .form form { grid-template-columns: 1fr !important; gap: 10px; }
@@ -1249,4 +1284,120 @@ html, body {
   section { padding: 18px; }
   .form form { grid-template-columns: 1fr 1fr; }
   main { gap: 14px; }
+}
+
+/* ==========================================================================
+   FIX largeur mobile : une colonne de grid "1fr" ne peut pas rétrécir sous
+   la largeur de son contenu (ex. le tableau historique), ce qui étirait
+   le formulaire hors de l'écran. minmax(0, 1fr) + min-width: 0 corrige.
+   ========================================================================== */
+main > *, .form form > *, .form label, .type-buttons > *, .filters > * {
+  min-width: 0;
+}
+.form input, .form select, .form textarea { width: 100%; }
+.table-wrap { max-width: 100%; }
+
+@media (max-width: 1099px) {
+  main { grid-template-columns: minmax(0, 1fr) !important; }
+  .app, section { max-width: 100%; }
+}
+@media (min-width: 641px) and (max-width: 1099px) {
+  .form form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .form form { grid-template-columns: minmax(0, 1fr) !important; }
+  .type-buttons { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .filters input[type=text], .filters > input[placeholder] { min-width: 0; flex: 1 1 100%; }
+  .actions button { white-space: normal; }
+}
+
+/* Mobile compact : le contenu reste centré au lieu de s'étirer bord à bord. */
+@media (max-width: 640px) {
+  body {
+    display: flex;
+    justify-content: center;
+  }
+
+  #root { width: 100%; }
+
+  .app {
+    width: min(100%, 480px);
+    margin-inline: auto;
+    padding-inline: max(14px, env(safe-area-inset-left, 0px));
+  }
+
+  .app > header {
+    align-items: center !important;
+    text-align: center;
+  }
+
+  .app > header .actions { justify-content: center; }
+
+  .app > header .user-pill {
+    flex: 0 1 auto;
+    align-self: center;
+    justify-content: center;
+  }
+
+  .app > header .actions button { flex: 0 1 auto; }
+
+  .tabs {
+    width: min(100%, 360px);
+    margin-inline: auto;
+  }
+
+  main,
+  main > section {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .scan-btn {
+    align-self: center;
+    width: min(100%, 220px);
+    min-height: 46px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .scan-btn-icon {
+    width: 1.25em;
+    height: 1.25em;
+  }
+
+  .modal-backdrop {
+    padding-inline: max(12px, env(safe-area-inset-left, 0px));
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal,
+  .modal-large,
+  .modal-detail,
+  .modal-scanner {
+    width: min(100%, 480px);
+    height: min(100dvh, 760px);
+    max-height: 100dvh;
+    margin-inline: auto;
+    border-radius: 12px;
+  }
+
+  .modal-scanner .scanner-body {
+    flex: 1;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  .modal-scanner .scanner-region {
+    width: 100%;
+    flex: 0 1 auto;
+    aspect-ratio: 3 / 4;
+    margin-inline: auto;
+  }
+
+  .scanner-region > div,
+  .scanner-region video,
+  .scanner-region canvas {
+    margin-inline: auto !important;
+  }
 }
