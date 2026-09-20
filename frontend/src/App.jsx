@@ -244,7 +244,10 @@ export default function App() {
                   onClick={() => setShowScanner(true)}
                   title="Scanner un code-barres avec la caméra"
                   aria-label="Scanner"
-                >📷 Scanner</button>
+                >
+                  <span className="scan-btn-icon" aria-hidden="true">📷</span>
+                  <span>Scanner</span>
+                </button>
               </div>
             </label>
             <label className="full">Client *
