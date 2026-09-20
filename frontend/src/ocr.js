@@ -70,6 +70,8 @@ export async function preprocess(source) {
 // Libellés rencontrés sur les étiquettes transporteur, FR et EN
 const CLIENT_LABELS = /(?:delivery\s*address|deliver\s*to|ship\s*to|consignee|destinataire|adresse\s*de\s*livraison|livraison)/i;
 const REF_LABELS = /(?:your\s*ref(?:erence)?|customer\s*ref(?:erence)?|ref(?:erence)?\s*client|votre\s*r[ée]f(?:[ée]rence)?)/i;
+// Le n° de colis/palette imprimé à côté ou au-dessus du code-barres
+const PALLET_LABELS = /(?:internal\s*pallet\s*id|pallet\s*id|internal\s*id)/i;
 
 // L'OCR met sur une même ligne des colonnes voisines de l'étiquette :
 // "Your reference        Weight: 12.5 kg". Ces libellés-là ne sont jamais
@@ -103,22 +105,50 @@ function pickReference(cands) {
   return cands.find(s => /\d/.test(s) && s.length >= 4) || cands[0] || null;
 }
 
-// Un nom client contient des lettres et pas seulement un code
-function pickClient(cands) {
-  return cands.find(s => /[a-z]{3}/i.test(s)) || cands[0] || null;
+// Le nom du client est la ligne immédiatement sous "Delivery address".
+// Si l'OCR a laissé le nom sur la ligne du libellé, on le prend là.
+function firstLineBelow(lines, index, labelRegex) {
+  const sameLine = cleanLine(lines[index].replace(labelRegex, '').replace(/^[\s:\-.·]+/, ''));
+  if (sameLine && !isNoise(sameLine) && !OTHER_LABELS.test(sameLine)) return sameLine;
+  for (let i = index + 1; i < lines.length; i++) {
+    const l = cleanLine(lines[i]);
+    if (!l) continue; // l'OCR intercale souvent des lignes vides
+    return l;
+  }
+  return null;
+}
+
+// Internal Pallet ID : un code, chiffres (parfois lettres), sans espaces
+function pickPalletId(cands) {
+  const isCode = t => /^[A-Z0-9][A-Z0-9\-_/]*$/i.test(t) && /\d/.test(t);
+  for (const cand of cands) {
+    const tokens = cand.split(/\s+/).filter(Boolean);
+    // L'OCR coupe parfois le code en deux ("3001 2477") : on recolle,
+    // mais seulement si toute la ligne est du code — sinon c'est la
+    // colonne voisine ("30055123  Zone A") et on garde le premier bloc.
+    if (tokens.length > 1 && tokens.every(isCode)) return tokens.join('');
+    const token = tokens.find(isCode);
+    if (token) return token;
+  }
+  return null;
 }
 
 export function parseLabelText(text) {
   const lines = (text || '').split('\n');
   let client = null;
   let reference = null;
+  let palletId = null;
 
   for (let i = 0; i < lines.length; i++) {
     if (!reference && REF_LABELS.test(lines[i])) {
       reference = pickReference(candidatesAfterLabel(lines, i, REF_LABELS));
     }
+    // Client = la ligne juste en dessous de "Delivery address", rien d'autre
     if (!client && CLIENT_LABELS.test(lines[i])) {
-      client = pickClient(candidatesAfterLabel(lines, i, CLIENT_LABELS));
+      client = firstLineBelow(lines, i, CLIENT_LABELS);
+    }
+    if (!palletId && PALLET_LABELS.test(lines[i])) {
+      palletId = pickPalletId(candidatesAfterLabel(lines, i, PALLET_LABELS));
     }
   }
 
@@ -128,12 +158,16 @@ export function parseLabelText(text) {
     reference = reference.replace(/\s+/g, '');
   }
 
-  return { client: client || null, reference: reference || null };
+  return {
+    client: client || null,
+    reference: reference || null,
+    palletId: palletId || null,
+  };
 }
 
 // Lit une photo d'étiquette (File, Blob ou dataURL) et en extrait client + référence
 export async function extractLabelFields(source) {
-  if (!source) return { client: null, reference: null, text: '' };
+  if (!source) return { client: null, reference: null, palletId: null, text: '' };
   try {
     const image = await preprocess(source);
     const worker = await getWorker();
@@ -141,7 +175,7 @@ export async function extractLabelFields(source) {
     return { ...parseLabelText(text), text: text || '' };
   } catch (err) {
     console.warn('[ocr] extraction failed:', err.message);
-    return { client: null, reference: null, text: '' };
+    return { client: null, reference: null, palletId: null, text: '' };
   }
 }
 

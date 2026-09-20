@@ -9,14 +9,22 @@ import BarcodeScanner from './BarcodeScanner.jsx';
 import { extractLabelFields } from './ocr.js';
 import { decodeBarcodeFromImage } from './labelScan.js';
 
-const CARTON_TYPES = ['Petit', 'Moyen', 'Grand', 'Palette'];
+const CARTON_TYPES = [
+  'Extra petit',
+  'Rug',
+  'Small box',
+  'Saddlepad box',
+  'Big box',
+  'Full box',
+  'Enveloppe',
+];
 const ORDER_TYPES = ['Zone 53', 'Proforma'];
 
 const emptyForm = {
   type: 'Zone 53',
   orderNumber: '',
   client: '',
-  cartonType: 'Moyen',
+  cartonType: 'Small box',
   cartonCount: 1,
   note: '',
 };
@@ -64,11 +72,13 @@ export default function App() {
 
     const [barcode, fields] = await Promise.all([
       decodeBarcodeFromImage(file).catch(() => null),
-      extractLabelFields(file).catch(() => ({ client: null, reference: null })),
+      extractLabelFields(file).catch(() => ({ client: null, reference: null, palletId: null })),
     ]);
-    const { client, reference } = fields;
+    const { client, reference, palletId } = fields;
+    // Note = Internal Pallet ID s'il est lisible, sinon le code-barres décodé
+    const cartonCode = palletId || barcode;
 
-    if (!barcode && !client && !reference) {
+    if (!cartonCode && !client && !reference) {
       setOcrStatus('failed');
       setOcrDetail('Rien de lisible. Reprends la photo bien à plat, étiquette entière et nette.');
       setTimeout(() => setOcrStatus(null), 5000);
@@ -79,18 +89,18 @@ export default function App() {
       ...prev,
       orderNumber: reference || prev.orderNumber,
       client: client || prev.client,
-      note: barcode || prev.note,
+      note: cartonCode || prev.note,
     }));
 
     const found = [
       reference ? 'n° commande' : null,
       client ? 'client' : null,
-      barcode ? 'code-barres' : null,
+      cartonCode ? 'n° carton' : null,
     ].filter(Boolean);
     const missing = [
       reference ? null : 'n° commande',
       client ? null : 'client',
-      barcode ? null : 'code-barres',
+      cartonCode ? null : 'n° carton',
     ].filter(Boolean);
 
     setOcrStatus(missing.length ? 'failed' : 'done');
