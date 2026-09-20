@@ -42,23 +42,8 @@ ${note ? `^CF0,28\n^FO60,500^FDNOTE^FS\n^CF0,32\n^FO60,540^FB752,3,0,L,0^FD${not
   return labels.join('\n');
 }
 
-export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt, note, cartonCount = 1 }) {
-  const W = 480, H = 720;
-  const dualLeft = window.screenLeft ?? window.screenX ?? 0;
-  const dualTop = window.screenTop ?? window.screenY ?? 0;
-  const winW = window.outerWidth || window.innerWidth || screen.availWidth;
-  const winH = window.outerHeight || window.innerHeight || screen.availHeight;
-  const left = Math.round(dualLeft + (winW - W) / 2);
-  const top = Math.round(dualTop + Math.max(0, (winH - H) / 2));
-
-  const features = `width=${W},height=${H},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`;
-  const w = window.open('', '_blank', features);
-  if (!w) {
-    alert('Le navigateur a bloqué la fenêtre d\'impression. Autorisez les popups pour ce site.');
-    return;
-  }
-  try { w.moveTo(left, top); w.resizeTo(W, H); } catch {}
-
+// Les étiquettes d'une commande (une par carton), prêtes à être concaténées
+function labelsMarkup({ type, client, orderNumber, createdBy, createdAt, note, cartonCount = 1 }) {
   const date = formatDateForLabel(createdAt);
   const headerText = (type || 'Zone 53').toUpperCase();
   const total = Math.max(1, Number(cartonCount) || 1);
@@ -103,11 +88,54 @@ export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt
       </div>
     `);
   }
+  return { html: labelsHTML.join(''), count: total };
+}
+
+// Impression d'une seule commande
+export function printLabelHTML(order) {
+  return printLabelsHTML([order]);
+}
+
+// Impression groupée : toutes les étiquettes dans un seul document, une par
+// page, donc un seul dialogue d'impression et une sortie imprimante en série.
+export function printLabelsHTML(orders) {
+  const list = (orders || []).filter(Boolean);
+  if (!list.length) return;
+
+  const parts = list.map(labelsMarkup);
+  const labelCount = parts.reduce((n, p) => n + p.count, 0);
+  const body = parts.map(p => p.html).join('');
+  const title = list.length === 1
+    ? `Étiquette ${list[0].orderNumber}${labelCount > 1 ? ` (${labelCount} cartons)` : ''}`
+    : `${list.length} commandes — ${labelCount} étiquettes`;
+  const barText = list.length === 1
+    ? `Aperçu — ${labelCount} étiquette${labelCount > 1 ? 's' : ''} (104 × 152 mm)`
+    : `Aperçu — ${list.length} commandes, ${labelCount} étiquettes (104 × 152 mm)`;
+
+  openPrintWindow({ title, barText, body });
+}
+
+function openPrintWindow({ title, barText, body }) {
+  const W = 480, H = 720;
+  const dualLeft = window.screenLeft ?? window.screenX ?? 0;
+  const dualTop = window.screenTop ?? window.screenY ?? 0;
+  const winW = window.outerWidth || window.innerWidth || screen.availWidth;
+  const winH = window.outerHeight || window.innerHeight || screen.availHeight;
+  const left = Math.round(dualLeft + (winW - W) / 2);
+  const top = Math.round(dualTop + Math.max(0, (winH - H) / 2));
+
+  const features = `width=${W},height=${H},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`;
+  const w = window.open('', '_blank', features);
+  if (!w) {
+    alert('Le navigateur a bloqué la fenêtre d\'impression. Autorisez les popups pour ce site.');
+    return;
+  }
+  try { w.moveTo(left, top); w.resizeTo(W, H); } catch {}
 
   w.document.write(`<!DOCTYPE html>
 <html><head>
 <meta charset="utf-8">
-<title>Étiquette ${escapeHtml(orderNumber)}${total > 1 ? ` (${total} cartons)` : ''}</title>
+<title>${escapeHtml(title)}</title>
 <style>
   /* Format Zebra réel : 104 x 152 mm, marges non-imprimables 0.5mm gauche/droite */
   @page { size: 104mm 152mm; margin: 0 0.5mm 0 0.5mm; }
@@ -217,10 +245,10 @@ export function printLabelHTML({ type, client, orderNumber, createdBy, createdAt
 </head>
 <body>
   <div class="preview-bar">
-    <span>Aperçu — ${total} étiquette${total > 1 ? 's' : ''} (104 × 152 mm)</span>
+    <span>${escapeHtml(barText)}</span>
     <button onclick="window.print()">Imprimer</button>
   </div>
-  ${labelsHTML.join('')}
+  ${body}
   <script>
     window.addEventListener('load', () => {
       setTimeout(() => window.print(), 250);

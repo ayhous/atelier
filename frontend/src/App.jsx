@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { api, getUser, clearSession } from './api.js';
-import { printLabelHTML } from './label.js';
+import { printLabelHTML, printLabelsHTML } from './label.js';
 import Login from './Login.jsx';
 import Avatar from './Avatar.jsx';
 import Todos from './Todos.jsx';
@@ -44,6 +44,7 @@ export default function App() {
   const [ocrStatus, setOcrStatus] = useState(null); // null | 'running' | 'done' | 'failed'
   const [ocrDetail, setOcrDetail] = useState('');
   const labelPhotoRef = useRef(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -100,6 +101,24 @@ export default function App() {
     setTimeout(() => setOcrStatus(null), missing.length ? 5000 : 3000);
   }
 
+  // Sélection de commandes pour l'impression groupée (poste fixe surtout)
+  function toggleSelected(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function printSelection() {
+    // Ordre du tableau : les étiquettes sortent dans l'ordre affiché
+    const payloads = filtered
+      .filter(o => selectedIds.has(o.id))
+      .map(labelPayload);
+    if (!payloads.length) return;
+    printLabelsHTML(payloads);
+  }
+
   async function refresh() {
     try {
       const { orders } = await api.listOrders();
@@ -131,17 +150,7 @@ export default function App() {
     }
     try {
       const { order } = await api.createOrder(form);
-      if (autoPrint) {
-        printLabelHTML({
-          type: order.order_type,
-          client: order.client,
-          orderNumber: order.order_number,
-          createdBy: order.created_by,
-          createdAt: order.created_at,
-          note: order.note,
-          cartonCount: order.carton_count || 1,
-        });
-      }
+      if (autoPrint) printLabelHTML(labelPayload(order));
       setForm({ ...emptyForm, type: form.type });
       await refresh();
       document.querySelector('input[name=orderNumber]')?.focus();
@@ -202,6 +211,17 @@ export default function App() {
     });
     return list;
   }, [orders, search, typeFilter, dateFilter, sortBy]);
+
+  // Une commande sélectionnée peut valoir plusieurs étiquettes (nb de cartons)
+  const selectedVisible = useMemo(
+    () => filtered.filter(o => selectedIds.has(o.id)),
+    [filtered, selectedIds]
+  );
+  const selectedCount = selectedVisible.length;
+  const selectedLabelCount = selectedVisible.reduce(
+    (n, o) => n + Math.max(1, Number(o.carton_count) || 1), 0
+  );
+  const allVisibleSelected = filtered.length > 0 && selectedCount === filtered.length;
 
   function toggleSort(key) {
     setSortBy(prev =>
@@ -375,10 +395,43 @@ export default function App() {
             <span className="count">{filtered.length} / {orders.length}</span>
           </div>
 
+          {selectedCount > 0 && (
+            <div className="selection-bar">
+              <span className="selection-count">
+                {selectedCount} commande{selectedCount > 1 ? 's' : ''} sélectionnée{selectedCount > 1 ? 's' : ''}
+                {selectedLabelCount !== selectedCount && ` — ${selectedLabelCount} étiquettes`}
+              </span>
+              <div className="selection-actions">
+                <button className="ghost" onClick={() => setSelectedIds(new Set())}>
+                  Tout décocher
+                </button>
+                <button className="primary" onClick={printSelection}>
+                  🖨 Imprimer la sélection
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th className="th-select">
+                    <input
+                      type="checkbox"
+                      title="Tout sélectionner"
+                      checked={allVisibleSelected}
+                      onChange={e => {
+                        const ids = filtered.map(o => o.id);
+                        setSelectedIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) ids.forEach(id => next.add(id));
+                          else ids.forEach(id => next.delete(id));
+                          return next;
+                        });
+                      }}
+                    />
+                  </th>
                   <th className="th-detail" aria-label="Détails"></th>
                   {[
                     ['created_at', 'Date'],
@@ -397,7 +450,15 @@ export default function App() {
               </thead>
               <tbody>
                 {filtered.map(o => (
-                  <tr key={o.id}>
+                  <tr key={o.id} className={selectedIds.has(o.id) ? 'row-selected' : ''}>
+                    <td className="td-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(o.id)}
+                        onChange={() => toggleSelected(o.id)}
+                        aria-label={`Sélectionner ${o.order_number}`}
+                      />
+                    </td>
                     <td className="td-detail">
                       <button
                         type="button"
@@ -439,7 +500,7 @@ export default function App() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan="8" className="empty">Aucune commande</td></tr>
+                  <tr><td colSpan="9" className="empty">Aucune commande</td></tr>
                 )}
               </tbody>
             </table>
@@ -477,6 +538,19 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+// Une commande de l'API -> les champs attendus par l'étiquette
+function labelPayload(order) {
+  return {
+    type: order.order_type,
+    client: order.client,
+    orderNumber: order.order_number,
+    createdBy: order.created_by,
+    createdAt: order.created_at,
+    note: order.note,
+    cartonCount: order.carton_count || 1,
+  };
 }
 
 const emptyUserForm = {
@@ -771,17 +845,7 @@ function OrderDetailModal({ order, avatars, onClose }) {
       .finally(() => setHistoryLoading(false));
   }, [order.id]);
 
-  const labelPayload = {
-    type: order.order_type,
-    client: order.client,
-    orderNumber: order.order_number,
-    createdBy: order.created_by,
-    createdAt: order.created_at,
-    note: order.note,
-    cartonCount: order.carton_count || 1,
-  };
-
-  function doPrint() { printLabelHTML(labelPayload); }
+  function doPrint() { printLabelHTML(labelPayload(order)); }
 
   const typeClass = `type-${(order.order_type || '').replace(/\s+/g, '').toLowerCase()}`;
 

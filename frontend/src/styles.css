@@ -1414,3 +1414,26 @@ main > *, .form form > *, .form label, .type-buttons > *, .filters > * {
   background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #dbeafe;
 }
 .label-photo-hint { font-size: 11px; color: #64748b; text-align: center; }
+
+/* Sélection de commandes + impression groupée */
+.th-select, .td-select { width: 36px; padding-right: 0 !important; text-align: center; }
+.th-select input, .td-select input {
+  width: 18px; height: 18px; accent-color: #3b82f6; cursor: pointer; margin: 0;
+}
+tr.row-selected td { background: rgba(59,130,246,0.10); }
+
+.selection-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  margin-bottom: 12px; padding: 10px 14px;
+  background: #16213d; border: 1px solid #3b4d75; border-radius: 8px;
+}
+.selection-count { font-size: 13px; color: #cbd5e1; font-weight: 500; }
+.selection-actions { display: flex; gap: 8px; }
+
+@media (max-width: 640px) {
+  .selection-bar { flex-direction: column; align-items: stretch; }
+  .selection-actions { width: 100%; }
+  .selection-actions button { flex: 1; padding: 11px; }
+  .th-select, .td-select { width: 30px; }
+}
