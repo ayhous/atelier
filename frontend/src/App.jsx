@@ -45,6 +45,7 @@ export default function App() {
   const [ocrDetail, setOcrDetail] = useState('');
   const labelPhotoRef = useRef(null);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const handheld = useHandheld();
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -308,18 +309,21 @@ export default function App() {
                   onChange={e => update('orderNumber', e.target.value)}
                   autoFocus
                 />
-                <button
-                  type="button"
-                  className="scan-btn"
-                  onClick={() => setShowScanner(true)}
-                  title="Scanner un code-barres avec la caméra"
-                  aria-label="Scanner"
-                >
-                  <span className="scan-btn-icon" aria-hidden="true">📷</span>
-                  <span>Scanner</span>
-                </button>
+                {handheld && (
+                  <button
+                    type="button"
+                    className="scan-btn"
+                    onClick={() => setShowScanner(true)}
+                    title="Scanner un code-barres avec la caméra"
+                    aria-label="Scanner"
+                  >
+                    <span className="scan-btn-icon" aria-hidden="true">📷</span>
+                    <span>Scanner</span>
+                  </button>
+                )}
               </div>
             </label>
+            {handheld && (
             <div className="full label-photo">
               <button
                 type="button"
@@ -345,6 +349,7 @@ export default function App() {
                 }}
               />
             </div>
+            )}
             <label className="full">Client *
               <input
                 value={form.client}
@@ -538,6 +543,24 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+// Scanner et photo d'étiquette n'ont de sens qu'avec une caméra en main.
+// On teste le type de pointeur, pas la largeur : une fenêtre PC réduite
+// reste un PC, et une tablette reste utilisable.
+function useHandheld() {
+  const query = '(pointer: coarse) and (hover: none)';
+  const [handheld, setHandheld] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.(query).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia?.(query);
+    if (!mq) return;
+    const onChange = e => setHandheld(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return handheld;
 }
 
 // Une commande de l'API -> les champs attendus par l'étiquette
