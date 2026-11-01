@@ -6,6 +6,7 @@ import Login from './Login.jsx';
 import Avatar from './Avatar.jsx';
 import Todos from './Todos.jsx';
 import BarcodeScanner from './BarcodeScanner.jsx';
+import SeriesCapture from './SeriesCapture.jsx';
 import { extractLabelFields } from './ocr.js';
 import { decodeBarcodeFromImage } from './labelScan.js';
 
@@ -54,6 +55,10 @@ export default function App() {
   const labelPhotoRef = useRef(null);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const handheld = useHandheld();
+  const [showSeries, setShowSeries] = useState(false);
+  // ?serie=1 permet d'ouvrir l'écran sur un PC à webcam, pour les essais
+  const seriesAvailable = handheld
+    || new URLSearchParams(window.location.search).has('serie');
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -360,6 +365,20 @@ export default function App() {
               />
             </div>
             )}
+            {seriesAvailable && (
+              <div className="full label-photo">
+                <button
+                  type="button"
+                  className="label-photo-btn"
+                  onClick={() => setShowSeries(true)}
+                >
+                  📸 Scan en série (essai)
+                </button>
+                <span className="label-photo-hint">
+                  Photographie les étiquettes à la suite, la lecture se fait en fond
+                </span>
+              </div>
+            )}
             <label className="full">Client *
               <input
                 value={form.client}
@@ -536,6 +555,13 @@ export default function App() {
             order={detailOrder}
             avatars={avatars}
             onClose={() => setDetailOrder(null)}
+          />
+        )}
+
+        {showSeries && (
+          <SeriesCapture
+            onClose={() => setShowSeries(false)}
+            onDone={() => setShowSeries(false)}
           />
         )}
 
