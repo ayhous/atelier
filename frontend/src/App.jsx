@@ -56,9 +56,9 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const handheld = useHandheld();
   const [showSeries, setShowSeries] = useState(false);
-  // ?serie=1 permet d'ouvrir l'écran sur un PC à webcam, pour les essais
-  const seriesAvailable = handheld
-    || new URLSearchParams(window.location.search).has('serie');
+  // Prototype : visible uniquement avec ?serie=1 dans l'adresse, pour ne rien
+  // changer à l'app de l'atelier tant qu'il n'est pas validé.
+  const seriesAvailable = new URLSearchParams(window.location.search).has('serie');
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
@@ -99,7 +99,9 @@ export default function App() {
 
     const found = [
       reference ? 'n° commande' : null,
-      client ? 'client' : null,
+      // Nom deviné faute de libellé "Delivery address" lisible : on le propose
+      // mais on le signale, jamais présenté comme lu avec certitude.
+      client ? (fields.clientSource === 'label' ? 'client' : 'client (à vérifier)') : null,
       cartonCode ? 'n° carton' : null,
     ].filter(Boolean);
     const missing = [
