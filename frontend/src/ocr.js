@@ -43,7 +43,7 @@ async function loadImage(source) {
   }
 }
 
-export async function preprocess(source) {
+export async function preprocess(source, contrast = 1.15) {
   const img = await loadImage(source);
   const srcW = img.naturalWidth || img.width;
   // Mesuré sur une étiquette réelle : agrandir une image déjà petite dégrade
@@ -64,7 +64,7 @@ export async function preprocess(source) {
     // Luminance perçue, puis contraste léger : au-delà, les chiffres fins
     // se referment et l'OCR les confond (mesuré sur étiquette réelle).
     const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-    const c = Math.max(0, Math.min(255, (g - 128) * 1.15 + 128));
+    const c = contrast === 1 ? g : Math.max(0, Math.min(255, (g - 128) * contrast + 128));
     px[i] = px[i + 1] = px[i + 2] = c;
   }
   ctx.putImageData(data, 0, 0);
@@ -219,17 +219,56 @@ export function parseLabelText(text) {
   };
 }
 
-// Lit une photo d'étiquette (File, Blob ou dataURL) et en extrait client + référence
-export async function extractLabelFields(source) {
-  if (!source) return { client: null, reference: null, palletId: null, text: '' };
+// Une passe de lecture avec des réglages donnés
+async function readPass(source, { contrast, pageSegMode }) {
+  const image = await preprocess(source, contrast);
+  const worker = await getWorker();
+  if (pageSegMode) await worker.setParameters({ tessedit_pageseg_mode: String(pageSegMode) });
   try {
-    const image = await preprocess(source);
-    const worker = await getWorker();
     const { data: { text } } = await worker.recognize(image);
-    return { ...parseLabelText(text), text: text || '' };
+    return text || '';
+  } finally {
+    if (pageSegMode) await worker.setParameters({ tessedit_pageseg_mode: '3' });
+  }
+}
+
+// "Your reference" est le n° de commande : c'est le champ qui ne doit pas
+// manquer. S'il sort vide, on relit la même photo avec d'autres réglages
+// avant d'abandonner — ça ne coûte que sur les étiquettes qui ont échoué.
+const RETRY_PASSES = [
+  { contrast: 1.0, pageSegMode: 6 },   // bloc de texte uniforme
+  { contrast: 1.45, pageSegMode: 4 },  // colonnes de largeurs variables
+];
+
+export async function extractLabelFields(source) {
+  if (!source) {
+    return { client: null, clientSource: null, reference: null, palletId: null, text: '', passes: 0 };
+  }
+  try {
+    let text = await readPass(source, { contrast: undefined });
+    let parsed = parseLabelText(text);
+    let passes = 1;
+
+    for (const settings of RETRY_PASSES) {
+      if (parsed.reference) break;
+      const retryText = await readPass(source, settings);
+      passes++;
+      const retry = parseLabelText(retryText);
+      // On ne remplace que ce qui manquait : une relecture ne doit pas
+      // écraser un champ déjà lu correctement.
+      parsed = {
+        client: parsed.client || retry.client,
+        clientSource: parsed.client ? parsed.clientSource : retry.clientSource,
+        reference: parsed.reference || retry.reference,
+        palletId: parsed.palletId || retry.palletId,
+      };
+      text = retryText;
+    }
+
+    return { ...parsed, text, passes };
   } catch (err) {
     console.warn('[ocr] extraction failed:', err.message);
-    return { client: null, reference: null, palletId: null, text: '' };
+    return { client: null, clientSource: null, reference: null, palletId: null, text: '', passes: 0 };
   }
 }
 

@@ -243,10 +243,17 @@ export default function SeriesCapture({ onClose, onDone }) {
     extractLabelFields(next.blob)
       .then(fields => {
         if (!mountedRef.current) return;
+        // Pas de n° de commande : on prévient tout de suite, l'opérateur est
+        // encore devant le carton et peut reprendre la photo.
+        if (!fields.reference) {
+          try { navigator.vibrate?.([120, 80, 120]); } catch { /* optionnel */ }
+        }
         setItems(prev => prev.map(i => i.id === next.id
           ? {
               ...i,
-              status: 'read',
+              // Sans n° de commande, l'étiquette ne sert à rien : elle passe
+              // en "à reprendre", pas en simple champ vide à compléter.
+              status: fields.reference ? 'read' : 'retake',
               fields: {
                 client: fields.client,
                 clientSure: fields.clientSource === 'label',
@@ -307,7 +314,9 @@ export default function SeriesCapture({ onClose, onDone }) {
     setShape(next);
   }
 
-  const pending = items.filter(i => i.status !== 'read').length;
+  const isDone = i => i.status === 'read' || i.status === 'retake';
+  const pending = items.filter(i => !isDone(i)).length;
+  const retakes = items.filter(i => i.status === 'retake').length;
   const incomplete = items.filter(
     i => i.status === 'read' && (!i.fields?.client || !i.fields?.clientSure
       || !i.fields?.reference || !i.fields?.referenceSure || !i.fields?.cartonCode)
@@ -357,6 +366,11 @@ export default function SeriesCapture({ onClose, onDone }) {
             {pending > 0 ? `${pending} en lecture…` : 'Lecture à jour'}
             {incomplete > 0 && ` · ${incomplete} à vérifier`}
           </span>
+          {retakes > 0 && (
+            <span className="series-alert">
+              ⚠ {retakes} étiquette{retakes > 1 ? 's' : ''} sans n° de commande — à reprendre
+            </span>
+          )}
         </div>
 
         {showMetrics && status.metrics && (
@@ -376,11 +390,16 @@ export default function SeriesCapture({ onClose, onDone }) {
             </p>
           )}
           {items.map((item, idx) => (
-            <div key={item.id} className="series-item">
+            <div key={item.id} className={`series-item ${item.status === 'retake' ? 'series-item-retake' : ''}`}>
               <img src={item.url} alt={`Étiquette ${idx + 1}`} className="series-thumb" />
               <div className="series-fields">
-                {item.status !== 'read' ? (
+                {!isDone(item) ? (
                   <span className="series-reading">Lecture en cours…</span>
+                ) : item.status === 'retake' ? (
+                  <span className="series-retake-msg">
+                    ⚠ N° de commande illisible — reprends la photo de ce carton,
+                    en cadrant bien la ligne « Your reference ».
+                  </span>
                 ) : (
                   <>
                     <div>
@@ -419,10 +438,13 @@ export default function SeriesCapture({ onClose, onDone }) {
           <button className="ghost" onClick={onClose}>Annuler</button>
           <button
             className="primary"
-            disabled={!items.length || pending > 0}
+            disabled={!items.length || pending > 0 || retakes > 0}
             onClick={() => onDone?.(items)}
+            title={retakes > 0 ? 'Reprends d\'abord les étiquettes sans n° de commande' : undefined}
           >
-            Terminer ({items.length})
+            {retakes > 0
+              ? `${retakes} à reprendre`
+              : `Terminer (${items.length})`}
           </button>
         </footer>
       </div>
