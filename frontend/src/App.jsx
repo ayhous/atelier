@@ -56,6 +56,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const handheld = useHandheld();
   const [showSeries, setShowSeries] = useState(false);
+  const [seriesBusy, setSeriesBusy] = useState(false);
   // Prototype : visible uniquement avec ?serie=1 dans l'adresse, pour ne rien
   // changer à l'app de l'atelier tant qu'il n'est pas validé.
   const seriesAvailable = new URLSearchParams(window.location.search).has('serie');
@@ -117,6 +118,57 @@ export default function App() {
         : 'Vérifie les valeurs avant d\'ajouter.'
     );
     setTimeout(() => setOcrStatus(null), missing.length ? 5000 : 3000);
+  }
+
+  // Enregistrement d'une série de photos : une commande par carton.
+  // Le n° de carton (code-barres) identifie le carton, donc il sert de
+  // garde-fou contre les doublons — deux cartons d'une même commande ont
+  // le même "Your reference" mais jamais le même code-barres.
+  async function saveSeries(items) {
+    const dejaEnBase = new Set(
+      orders.map(o => (o.note || '').trim()).filter(Boolean)
+    );
+    const vus = new Set();
+    let ajoutees = 0;
+    const doublons = [];
+    const echecs = [];
+
+    setSeriesBusy(true);
+    try {
+      for (const item of items) {
+        const { reference, client, cartonCode } = item.fields || {};
+        if (!reference || !client) continue;
+        const code = (cartonCode || '').trim();
+        if (code && (dejaEnBase.has(code) || vus.has(code))) {
+          doublons.push(code);
+          continue;
+        }
+        try {
+          await api.createOrder({
+            type: form.type,
+            orderNumber: reference,
+            client,
+            cartonType: form.cartonType,
+            cartonCount: 1,
+            note: code,
+          });
+          if (code) vus.add(code);
+          ajoutees++;
+        } catch (err) {
+          echecs.push(`${reference} : ${err.message}`);
+        }
+      }
+    } finally {
+      setSeriesBusy(false);
+    }
+
+    await refresh();
+    setShowSeries(false);
+
+    const resume = [`${ajoutees} commande${ajoutees > 1 ? 's' : ''} enregistrée${ajoutees > 1 ? 's' : ''}`];
+    if (doublons.length) resume.push(`${doublons.length} déjà en base (même n° de carton), ignorée${doublons.length > 1 ? 's' : ''}`);
+    if (echecs.length) resume.push(`${echecs.length} en échec :\n${echecs.join('\n')}`);
+    alert(resume.join('\n'));
   }
 
   // Sélection de commandes pour l'impression groupée (poste fixe surtout)
@@ -562,8 +614,9 @@ export default function App() {
 
         {showSeries && (
           <SeriesCapture
+            busy={seriesBusy}
             onClose={() => setShowSeries(false)}
-            onDone={() => setShowSeries(false)}
+            onDone={saveSeries}
           />
         )}
 

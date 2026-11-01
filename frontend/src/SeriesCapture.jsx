@@ -16,6 +16,7 @@ const OK_FRAMES_NEEDED = 2;   // images consécutives correctes avant déclenche
 const COOLDOWN_MS = 1500;     // pause après une prise, le temps de passer au carton suivant
 const REARM_FRAMES = 3;       // images hors cadre avant de réarmer le déclenchement
 const CAPTURE_MARGIN = 0.12;  // marge photographiée autour du cadre de visée
+const COMPACT_KEY = 'zone53_serie_compact';
 
 // Cadre centré de la forme voulue, le plus grand qui tienne dans l'image.
 // Renvoie des fractions (pour l'affichage) ; le même calcul sert au recadrage.
@@ -54,7 +55,23 @@ async function getBarcodeDetector() {
   }
 }
 
-export default function SeriesCapture({ onClose, onDone }) {
+// Un champ du récapitulatif : lu par l'OCR, corrigeable à la main.
+function SeriesField({ label, value, unsure, onChange }) {
+  const missing = !value;
+  return (
+    <label className="series-field">
+      <span>{label}</span>
+      <input
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        placeholder="à compléter"
+        className={missing ? 'field-missing' : unsure ? 'field-unsure' : ''}
+      />
+    </label>
+  );
+}
+
+export default function SeriesCapture({ onClose, onDone, busy }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
@@ -79,6 +96,13 @@ export default function SeriesCapture({ onClose, onDone }) {
   const [videoSize, setVideoSize] = useState(null);
   const shapeRef = useRef('portrait');
   const [showMetrics, setShowMetrics] = useState(false);
+  // Caméra réduite : on garde la visée mais on laisse la place à la liste.
+  const [compact, setCompact] = useState(
+    () => localStorage.getItem(COMPACT_KEY) === '1'
+  );
+  useEffect(() => {
+    localStorage.setItem(COMPACT_KEY, compact ? '1' : '0');
+  }, [compact]);
 
   // --- Prise de vue -------------------------------------------------------
   const capture = useCallback(async (detectedBarcode) => {
@@ -308,6 +332,19 @@ export default function SeriesCapture({ onClose, onDone }) {
       }
     : undefined;
 
+  // Correction manuelle : la valeur saisie fait foi, on la considère sûre.
+  function editField(id, key, value) {
+    const clean = value.trim();
+    setItems(prev => prev.map(i => {
+      if (i.id !== id) return i;
+      const fields = { ...i.fields, [key]: clean || null };
+      if (key === 'reference') fields.referenceSure = !!clean;
+      if (key === 'client') fields.clientSure = !!clean;
+      if (key === 'cartonCode') fields.cartonFromBarcode = !!clean;
+      return { ...i, fields, status: fields.reference ? 'read' : 'retake' };
+    }));
+  }
+
   function switchShape() {
     const next = shape === 'portrait' ? 'paysage' : 'portrait';
     shapeRef.current = next;
@@ -317,9 +354,14 @@ export default function SeriesCapture({ onClose, onDone }) {
   const isDone = i => i.status === 'read' || i.status === 'retake';
   const pending = items.filter(i => !isDone(i)).length;
   const retakes = items.filter(i => i.status === 'retake').length;
+  // Le backend refuse une commande sans n° ni client : ces deux champs
+  // doivent être remplis, lus ou tapés, avant l'enregistrement.
+  const blocking = items.filter(
+    i => isDone(i) && (!i.fields?.reference || !i.fields?.client)
+  ).length;
   const incomplete = items.filter(
-    i => i.status === 'read' && (!i.fields?.client || !i.fields?.clientSure
-      || !i.fields?.reference || !i.fields?.referenceSure || !i.fields?.cartonCode)
+    i => isDone(i) && !blocking && (!i.fields?.clientSure
+      || !i.fields?.referenceSure || !i.fields?.cartonCode)
   ).length;
 
   return (
@@ -331,7 +373,7 @@ export default function SeriesCapture({ onClose, onDone }) {
         </header>
 
         <div
-          className="series-camera"
+          className={`series-camera ${compact ? 'series-camera-compact' : ''}`}
           style={videoSize ? { aspectRatio: `${videoSize.w} / ${videoSize.h}` } : undefined}
         >
           <video ref={videoRef} playsInline muted className="series-video" />
@@ -358,6 +400,9 @@ export default function SeriesCapture({ onClose, onDone }) {
           </button>
           <button className="ghost" onClick={switchShape} title="Forme de l'étiquette">
             ⟲ {LABEL_SHAPES[shape].label}
+          </button>
+          <button className="ghost" onClick={() => setCompact(v => !v)}>
+            {compact ? '▼ Agrandir' : '▲ Réduire'}
           </button>
           <button className="ghost" onClick={() => setShowMetrics(v => !v)}>
             {showMetrics ? 'Masquer' : 'Mesures'}
@@ -395,37 +440,28 @@ export default function SeriesCapture({ onClose, onDone }) {
               <div className="series-fields">
                 {!isDone(item) ? (
                   <span className="series-reading">Lecture en cours…</span>
-                ) : item.status === 'retake' ? (
-                  <span className="series-retake-msg">
-                    ⚠ N° de commande illisible — reprends la photo de ce carton,
-                    en cadrant bien la ligne « Your reference ».
-                  </span>
                 ) : (
                   <>
-                    <div>
-                      <b>N° commande</b>{' '}
-                      {item.fields.reference
-                        ? <span className={item.fields.referenceSure ? '' : 'series-unsure'}>
-                            {item.fields.reference}{item.fields.referenceSure ? '' : ' (à vérifier)'}
-                          </span>
-                        : <i>à compléter</i>}
-                    </div>
-                    <div>
-                      <b>Client</b>{' '}
-                      {item.fields.client
-                        ? <span className={item.fields.clientSure ? '' : 'series-unsure'}>
-                            {item.fields.client}{item.fields.clientSure ? '' : ' (à vérifier)'}
-                          </span>
-                        : <i>à compléter</i>}
-                    </div>
-                    <div>
-                      <b>N° carton</b>{' '}
-                      {item.fields.cartonCode
-                        ? <span className={item.fields.cartonFromBarcode ? '' : 'series-unsure'}>
-                            {item.fields.cartonCode}{item.fields.cartonFromBarcode ? '' : ' (à vérifier)'}
-                          </span>
-                        : <i>à compléter</i>}
-                    </div>
+                    {item.status === 'retake' && (
+                      <span className="series-retake-msg">
+                        ⚠ N° de commande illisible — reprends la photo, ou tape-le ici.
+                      </span>
+                    )}
+                    <SeriesField
+                      label="N° commande" value={item.fields.reference}
+                      unsure={!item.fields.referenceSure}
+                      onChange={v => editField(item.id, 'reference', v)}
+                    />
+                    <SeriesField
+                      label="Client" value={item.fields.client}
+                      unsure={!item.fields.clientSure}
+                      onChange={v => editField(item.id, 'client', v)}
+                    />
+                    <SeriesField
+                      label="N° carton" value={item.fields.cartonCode}
+                      unsure={!item.fields.cartonFromBarcode}
+                      onChange={v => editField(item.id, 'cartonCode', v)}
+                    />
                   </>
                 )}
               </div>
@@ -438,13 +474,13 @@ export default function SeriesCapture({ onClose, onDone }) {
           <button className="ghost" onClick={onClose}>Annuler</button>
           <button
             className="primary"
-            disabled={!items.length || pending > 0 || retakes > 0}
+            disabled={!items.length || pending > 0 || blocking > 0 || busy}
             onClick={() => onDone?.(items)}
-            title={retakes > 0 ? 'Reprends d\'abord les étiquettes sans n° de commande' : undefined}
+            title={blocking > 0 ? 'Complète le n° de commande et le client' : undefined}
           >
-            {retakes > 0
-              ? `${retakes} à reprendre`
-              : `Terminer (${items.length})`}
+            {busy ? 'Enregistrement…'
+              : blocking > 0 ? `${blocking} à compléter`
+              : `Enregistrer (${items.length})`}
           </button>
         </footer>
       </div>
