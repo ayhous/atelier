@@ -251,8 +251,13 @@ export default function SeriesCapture({ onClose, onDone }) {
                 client: fields.client,
                 clientSure: fields.clientSource === 'label',
                 reference: fields.reference,
-                // Internal Pallet ID lu sur la photo, sinon code-barres décodé en direct
-                cartonCode: fields.palletId || i.barcode || null,
+                // "Your reference" sans aucun chiffre : l'OCR a probablement
+                // dérapé (mesuré : "178053" lu "TEBOSS"). On le signale.
+                referenceSure: !!fields.reference && /\d/.test(fields.reference),
+                // Le code-barres vaut l'Internal Pallet ID, et il est exact :
+                // on le préfère à l'OCR, qui confond les chiffres.
+                cartonCode: i.barcode || fields.palletId || null,
+                cartonFromBarcode: !!i.barcode,
               },
             }
           : i));
@@ -304,7 +309,8 @@ export default function SeriesCapture({ onClose, onDone }) {
 
   const pending = items.filter(i => i.status !== 'read').length;
   const incomplete = items.filter(
-    i => i.status === 'read' && (!i.fields?.client || !i.fields?.clientSure || !i.fields?.reference)
+    i => i.status === 'read' && (!i.fields?.client || !i.fields?.clientSure
+      || !i.fields?.reference || !i.fields?.referenceSure || !i.fields?.cartonCode)
   ).length;
 
   return (
@@ -377,7 +383,14 @@ export default function SeriesCapture({ onClose, onDone }) {
                   <span className="series-reading">Lecture en cours…</span>
                 ) : (
                   <>
-                    <div><b>N° commande</b> {item.fields.reference || <i>à compléter</i>}</div>
+                    <div>
+                      <b>N° commande</b>{' '}
+                      {item.fields.reference
+                        ? <span className={item.fields.referenceSure ? '' : 'series-unsure'}>
+                            {item.fields.reference}{item.fields.referenceSure ? '' : ' (à vérifier)'}
+                          </span>
+                        : <i>à compléter</i>}
+                    </div>
                     <div>
                       <b>Client</b>{' '}
                       {item.fields.client
@@ -386,7 +399,14 @@ export default function SeriesCapture({ onClose, onDone }) {
                           </span>
                         : <i>à compléter</i>}
                     </div>
-                    <div><b>N° carton</b> {item.fields.cartonCode || <i>à compléter</i>}</div>
+                    <div>
+                      <b>N° carton</b>{' '}
+                      {item.fields.cartonCode
+                        ? <span className={item.fields.cartonFromBarcode ? '' : 'series-unsure'}>
+                            {item.fields.cartonCode}{item.fields.cartonFromBarcode ? '' : ' (à vérifier)'}
+                          </span>
+                        : <i>à compléter</i>}
+                    </div>
                   </>
                 )}
               </div>

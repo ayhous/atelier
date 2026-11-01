@@ -23,8 +23,8 @@ function cleanLine(s) {
 }
 
 // Une photo de téléphone fait 3000-4000px de large : Tesseract y est lent et pas
-// plus précis. On redescend à 2000px max, en niveaux de gris avec contraste
-// renforcé — c'est ce que l'OCR lit le mieux sur un texte imprimé.
+// plus précis. On redescend à 2000px max, en niveaux de gris avec un contraste
+// léger — un contraste fort referme les chiffres fins et les fait confondre.
 const MAX_WIDTH = 2000;
 
 async function loadImage(source) {
@@ -45,7 +45,10 @@ async function loadImage(source) {
 
 export async function preprocess(source) {
   const img = await loadImage(source);
-  const scale = Math.min(1, MAX_WIDTH / (img.naturalWidth || img.width));
+  const srcW = img.naturalWidth || img.width;
+  // Mesuré sur une étiquette réelle : agrandir une image déjà petite dégrade
+  // la lecture des chiffres (interpolation). On se contente de réduire.
+  const scale = Math.min(1, MAX_WIDTH / srcW);
   const w = Math.round((img.naturalWidth || img.width) * scale);
   const h = Math.round((img.naturalHeight || img.height) * scale);
 
@@ -58,9 +61,10 @@ export async function preprocess(source) {
   const data = ctx.getImageData(0, 0, w, h);
   const px = data.data;
   for (let i = 0; i < px.length; i += 4) {
-    // Luminance perçue, puis contraste centré sur le gris moyen
+    // Luminance perçue, puis contraste léger : au-delà, les chiffres fins
+    // se referment et l'OCR les confond (mesuré sur étiquette réelle).
     const g = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-    const c = Math.max(0, Math.min(255, (g - 128) * 1.6 + 128));
+    const c = Math.max(0, Math.min(255, (g - 128) * 1.15 + 128));
     px[i] = px[i + 1] = px[i + 2] = c;
   }
   ctx.putImageData(data, 0, 0);
@@ -109,26 +113,48 @@ function pickReference(cands) {
 // Si l'OCR a laissé le nom sur la ligne du libellé, on le prend là.
 function firstLineBelow(lines, index, labelRegex) {
   const sameLine = cleanLine(lines[index].replace(labelRegex, '').replace(/^[\s:\-.·]+/, ''));
-  if (sameLine && !isNoise(sameLine) && !OTHER_LABELS.test(sameLine)) return sameLine;
+  const sameName = nameOrNull(sameLine);
+  if (sameName && !OTHER_LABELS.test(sameName)) return sameName;
   for (let i = index + 1; i < lines.length; i++) {
-    const l = cleanLine(lines[i]);
-    if (!l) continue; // l'OCR intercale souvent des lignes vides
-    return l;
+    if (!cleanLine(lines[i])) continue; // l'OCR intercale des lignes vides
+    const name = nameOrNull(lines[i]);
+    if (name) return name;
+    return null; // la ligne sous le libellé existe mais n'est pas un nom
   }
   return null;
+}
+
+// Un nom lisible, débarrassé du bruit de bord de scan : "73 savickaite
+// Gabriele" -> "savickaite Gabriele", "Ss :" -> rien.
+function nameOrNull(line) {
+  const tokens = cleanLine(line).split(/\s+/).filter(Boolean);
+  while (tokens.length && !/[a-zà-ÿ]{3}/i.test(tokens[0])) tokens.shift();
+  const s = tokens.join(' ').replace(/[\s:;.,_|-]+$/, '').trim();
+  if (s.length < 3 || !/[a-zà-ÿ]{3}/i.test(s)) return null;
+  return s;
 }
 
 // Internal Pallet ID : un code, chiffres (parfois lettres), sans espaces
 function pickPalletId(cands) {
   const isCode = t => /^[A-Z0-9][A-Z0-9\-_/]*$/i.test(t) && /\d/.test(t);
+  const digits = s => (s.match(/\d/g) || []).length;
+
   for (const cand of cands) {
     const tokens = cand.split(/\s+/).filter(Boolean);
-    // L'OCR coupe parfois le code en deux ("3001 2477") : on recolle,
-    // mais seulement si toute la ligne est du code — sinon c'est la
-    // colonne voisine ("30055123  Zone A") et on garde le premier bloc.
-    if (tokens.length > 1 && tokens.every(isCode)) return tokens.join('');
-    const token = tokens.find(isCode);
-    if (token) return token;
+    // L'OCR coupe le code ("1 001275612") et laisse du bruit avant
+    // ("nternal : 1 001275612"). On cherche la plus longue suite de
+    // morceaux de code qui se suivent, et on la recolle.
+    let best = '';
+    let run = '';
+    for (const t of tokens) {
+      if (isCode(t)) {
+        run += t;
+        if (digits(run) > digits(best)) best = run;
+      } else {
+        run = '';
+      }
+    }
+    if (best) return best;
   }
   return null;
 }
