@@ -1447,9 +1447,12 @@ tr.row-selected td { background: rgba(59,130,246,0.10); }
 }
 .series-camera {
   position: relative; background: #000;
-  aspect-ratio: 4 / 3; width: 100%; overflow: hidden; flex-shrink: 0;
+  aspect-ratio: 3 / 4;      /* remplacé par la forme réelle de la caméra */
+  width: 100%; overflow: hidden; flex-shrink: 0;
+  max-height: 60vh; margin: 0 auto;
 }
-.series-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* contain : ce que l'écran montre correspond exactement à ce qui est analysé */
+.series-video { width: 100%; height: 100%; object-fit: contain; display: block; }
 .series-guide {
   position: absolute; left: 6%; top: 19%; width: 88%; height: 62%;
   border: 3px solid rgba(248,113,113,0.9); border-radius: 10px;
