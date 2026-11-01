@@ -284,7 +284,8 @@ export default function SeriesCapture({ onClose, onDone, busy }) {
                 reference: fields.reference,
                 // "Your reference" sans aucun chiffre : l'OCR a probablement
                 // dérapé (mesuré : "178053" lu "TEBOSS"). On le signale.
-                referenceSure: !!fields.reference && /\d/.test(fields.reference),
+                referenceSure: !!fields.reference && /\d/.test(fields.reference)
+                  && fields.referenceSource === 'label',
                 // Le code-barres vaut l'Internal Pallet ID, et il est exact :
                 // on le préfère à l'OCR, qui confond les chiffres.
                 cartonCode: i.barcode || fields.palletId || null,

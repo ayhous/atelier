@@ -2,19 +2,25 @@
 // Lit sur la photo d'une étiquette : le nom client (sous "Delivery address")
 // et la référence client ("Your reference"), qui sert de n° de commande.
 
-let workerPromise = null;
+const workers = new Map();
 
-async function getWorker() {
-  if (!workerPromise) {
-    workerPromise = (async () => {
+// Un worker par mode de segmentation. Changer le mode sur un worker partagé
+// laissait le réglage en place pour les étiquettes suivantes : la première
+// photo était lue normalement, les suivantes dans un mode imposé par une
+// relecture précédente — d'où des résultats incohérents d'une photo à l'autre.
+async function getWorker(pageSegMode = null) {
+  const key = pageSegMode || 'defaut';
+  if (!workers.has(key)) {
+    workers.set(key, (async () => {
       const { createWorker } = await import('tesseract.js');
       // eng suffit pour les mots-clés "Delivery address" / "Your reference".
       // Les valeurs (noms clients) sont en général en majuscules, ASCII latin.
       const w = await createWorker('eng');
+      if (pageSegMode) await w.setParameters({ tessedit_pageseg_mode: String(pageSegMode) });
       return w;
-    })();
+    })());
   }
-  return workerPromise;
+  return workers.get(key);
 }
 
 function cleanLine(s) {
@@ -106,7 +112,25 @@ function candidatesAfterLabel(lines, index, labelRegex) {
 
 // Une référence contient presque toujours un chiffre : on la préfère
 function pickReference(cands) {
-  return cands.find(s => /\d/.test(s) && s.length >= 4) || cands[0] || null;
+  const hit = cands.find(s => /\d/.test(s) && s.length >= 4);
+  return hit ? cleanReference(hit) : (cands[0] || null);
+}
+
+// L'OCR accroche souvent un bout de la colonne voisine à la référence
+// ("178053 gy", "178053 ~ 4"). On garde le morceau qui ressemble à un code.
+function cleanReference(value) {
+  const tokens = value.split(/\s+/).filter(Boolean)
+    .map(t => t.replace(/^[^A-Z0-9]+|[^A-Z0-9/-]+$/gi, ''))
+    .filter(Boolean);
+  const withDigits = tokens.filter(t => /\d/.test(t));
+  if (!withDigits.length) return tokens.join(' ') || null;
+  // Plusieurs morceaux chiffrés qui se suivent : l'OCR a coupé un code.
+  // Un fragment d'un seul caractère est du bruit, pas un morceau de code.
+  if (withDigits.length === tokens.length && tokens.length > 1
+      && tokens.every(t => t.length >= 2)) {
+    return tokens.join('');
+  }
+  return withDigits.reduce((a, b) => (b.length > a.length ? b : a));
 }
 
 // Le nom du client est la ligne immédiatement sous "Delivery address".
@@ -215,6 +239,7 @@ export function parseLabelText(text) {
     client: client || null,
     clientSource,
     reference: reference || null,
+    referenceSource: reference ? 'label' : null,
     palletId: palletId || null,
   };
 }
@@ -222,14 +247,9 @@ export function parseLabelText(text) {
 // Une passe de lecture avec des réglages donnés
 async function readPass(source, { contrast, pageSegMode }) {
   const image = await preprocess(source, contrast);
-  const worker = await getWorker();
-  if (pageSegMode) await worker.setParameters({ tessedit_pageseg_mode: String(pageSegMode) });
-  try {
-    const { data: { text } } = await worker.recognize(image);
-    return text || '';
-  } finally {
-    if (pageSegMode) await worker.setParameters({ tessedit_pageseg_mode: '3' });
-  }
+  const worker = await getWorker(pageSegMode);
+  const { data: { text } } = await worker.recognize(image);
+  return text || '';
 }
 
 // "Your reference" est le n° de commande : c'est le champ qui ne doit pas
@@ -242,7 +262,7 @@ const RETRY_PASSES = [
 
 export async function extractLabelFields(source) {
   if (!source) {
-    return { client: null, clientSource: null, reference: null, palletId: null, text: '', passes: 0 };
+    return { client: null, clientSource: null, reference: null, referenceSource: null, palletId: null, text: '', passes: 0 };
   }
   try {
     let text = await readPass(source, { contrast: undefined });
@@ -255,11 +275,16 @@ export async function extractLabelFields(source) {
       passes++;
       const retry = parseLabelText(retryText);
       // On ne remplace que ce qui manquait : une relecture ne doit pas
-      // écraser un champ déjà lu correctement.
+      // écraser un champ déjà lu correctement. Et ce qui vient d'une
+      // relecture est marqué incertain : ces modes de segmentation
+      // récupèrent des valeurs, mais avec plus de bruit.
       parsed = {
         client: parsed.client || retry.client,
-        clientSource: parsed.client ? parsed.clientSource : retry.clientSource,
+        clientSource: parsed.client ? parsed.clientSource
+          : (retry.client ? 'relecture' : null),
         reference: parsed.reference || retry.reference,
+        referenceSource: parsed.reference ? parsed.referenceSource
+          : (retry.reference ? 'relecture' : null),
         palletId: parsed.palletId || retry.palletId,
       };
       text = retryText;
