@@ -133,6 +133,21 @@ function pickPalletId(cands) {
   return null;
 }
 
+// Repli : première ligne "nom d'entreprise" avant la référence — ni une
+// adresse (qui commence par un numéro), ni un libellé, ni un code.
+function guessClientLine(lines) {
+  for (const raw of lines) {
+    const s = cleanLine(raw);
+    if (!s || isNoise(s) || OTHER_LABELS.test(s)) continue;
+    if (REF_LABELS.test(s) || PALLET_LABELS.test(s)) return null; // trop bas dans l'étiquette
+    if (/^\d/.test(s)) continue;              // "12 RUE DES ARTISANS"
+    if (!/[a-z]{3}/i.test(s)) continue;       // un code, pas un nom
+    if (s.length < 4) continue;
+    return s;
+  }
+  return null;
+}
+
 export function parseLabelText(text) {
   const lines = (text || '').split('\n');
   let client = null;
@@ -158,8 +173,21 @@ export function parseLabelText(text) {
     reference = reference.replace(/\s+/g, '');
   }
 
+  // Si "Delivery address" a été coupé par le cadrage, le nom du client est en
+  // général la première ligne de l'étiquette. On la propose, mais marquée
+  // comme incertaine : à l'écran elle s'affiche "à vérifier", jamais comme lue.
+  let clientSource = client ? 'label' : null;
+  if (!client) {
+    const guess = guessClientLine(lines);
+    if (guess) {
+      client = guess;
+      clientSource = 'guess';
+    }
+  }
+
   return {
     client: client || null,
+    clientSource,
     reference: reference || null,
     palletId: palletId || null,
   };

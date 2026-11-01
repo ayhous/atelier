@@ -1437,3 +1437,65 @@ tr.row-selected td { background: rgba(59,130,246,0.10); }
   .selection-actions button { flex: 1; padding: 11px; }
   .th-select, .td-select { width: 30px; }
 }
+
+/* ==========================================================================
+   Scan en série : caméra plein cadre, visée verte, file de lecture
+   ========================================================================== */
+.modal.modal-series {
+  max-width: 560px; width: 100%; height: 100vh; max-height: 100vh;
+  display: flex; flex-direction: column; border-radius: 0;
+}
+.series-camera {
+  position: relative; background: #000;
+  aspect-ratio: 4 / 3; width: 100%; overflow: hidden; flex-shrink: 0;
+}
+.series-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.series-guide {
+  position: absolute; left: 6%; top: 19%; width: 88%; height: 62%;
+  border: 3px solid rgba(248,113,113,0.9); border-radius: 10px;
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,0.35);
+  transition: border-color 0.12s ease;
+  display: flex; align-items: flex-end; justify-content: center;
+  pointer-events: none;
+}
+.series-guide.guide-ok { border-color: #22c55e; }
+.series-guide-label {
+  transform: translateY(140%);
+  background: rgba(15,23,41,0.88); color: #fecaca;
+  padding: 6px 14px; border-radius: 999px;
+  font-size: 14px; font-weight: 700; white-space: nowrap;
+}
+.series-guide.guide-ok .series-guide-label { color: #bbf7d0; }
+.series-flash { position: absolute; inset: 0; background: #fff; opacity: 0.75; }
+.series-error { position: absolute; left: 12px; right: 12px; bottom: 12px; }
+
+.series-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid #1f2a44;
+}
+.series-queue { font-size: 12px; color: #94a3b8; margin-left: auto; }
+.series-metrics {
+  padding: 8px 14px; font-size: 11px; color: #64748b;
+  font-family: "JetBrains Mono", Menlo, monospace;
+  border-bottom: 1px solid #1f2a44;
+}
+
+.series-list { flex: 1; overflow-y: auto; padding: 12px 14px; display: grid; gap: 10px; align-content: start; }
+.series-hint { color: #64748b; font-size: 13px; text-align: center; margin: 24px 0; }
+.series-item {
+  display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center;
+  background: #16213d; border: 1px solid #2a3a5e; border-radius: 8px; padding: 8px;
+}
+.series-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
+.series-fields { font-size: 12px; color: #cbd5e1; display: grid; gap: 2px; min-width: 0; }
+.series-fields b { color: #94a3b8; font-weight: 600; margin-right: 6px; }
+.series-fields i { color: #f59e0b; font-style: normal; }
+.series-reading { color: #94a3b8; font-size: 12px; }
+.series-del { padding: 6px 10px; }
+
+.series-footer {
+  display: flex; gap: 8px; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #1f2a44;
+}
+.series-footer button { flex: 1; padding: 13px; }
+.series-unsure { color: #f59e0b; }
