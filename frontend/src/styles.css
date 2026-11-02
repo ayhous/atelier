@@ -1526,3 +1526,12 @@ tr.row-selected td { background: rgba(59,130,246,0.10); }
 .series-field input.field-missing { border-color: #ef4444; background: rgba(239,68,68,0.08); }
 .series-item { grid-template-columns: 56px 1fr auto; }
 .series-fields { gap: 6px; }
+
+/* Déclenchement manuel : le bouton est l'action principale de l'écran */
+.series-shoot {
+  flex: 1 1 100%; padding: 14px; font-size: 16px; font-weight: 700;
+  background: #334155;
+}
+.series-shoot:hover { background: #3f4f68; }
+.series-shoot.shoot-ready { background: #10b981; }
+.series-shoot.shoot-ready:hover { background: #059669; }

@@ -12,9 +12,6 @@ const LABEL_SHAPES = {
 const GUIDE_MAX = 0.94;       // le cadre ne touche jamais tout à fait le bord
 
 const CHECK_INTERVAL = 150;   // ms entre deux analyses d'image
-const OK_FRAMES_NEEDED = 2;   // images consécutives correctes avant déclenchement
-const COOLDOWN_MS = 1500;     // pause après une prise, le temps de passer au carton suivant
-const REARM_FRAMES = 3;       // images hors cadre avant de réarmer le déclenchement
 const CAPTURE_MARGIN = 0.12;  // marge photographiée autour du cadre de visée
 const COMPACT_KEY = 'zone53_serie_compact';
 
@@ -75,15 +72,8 @@ export default function SeriesCapture({ onClose, onDone, busy }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const detectorRef = useRef(null);
-  const okStreakRef = useRef(0);
-  const lastShotRef = useRef(0);
   const lastBarcodeRef = useRef(null);
   const busyRef = useRef(false);
-  // Après une prise, il faut que le cadre redevienne mauvais (étiquette retirée,
-  // caméra déplacée) avant de pouvoir redéclencher : sans ça, un appareil sans
-  // lecteur de code-barres reprendrait le même carton en boucle.
-  const armedRef = useRef(true);
-  const notOkStreakRef = useRef(0);
   const queueBusyRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -122,11 +112,8 @@ export default function SeriesCapture({ onClose, onDone, busy }) {
       const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.9));
       if (!blob) return;
 
-      lastShotRef.current = Date.now();
       lastBarcodeRef.current = detectedBarcode || null;
-      okStreakRef.current = 0;
-      armedRef.current = false;
-      notOkStreakRef.current = 0;
+      try { navigator.vibrate?.(40); } catch { /* optionnel */ }
       setFlash(true);
       setTimeout(() => setFlash(false), 180);
 
@@ -216,22 +203,9 @@ export default function SeriesCapture({ onClose, onDone, busy }) {
             metrics: result.metrics,
           });
 
-          if (!ready) {
-            okStreakRef.current = 0;
-            notOkStreakRef.current += 1;
-            // Le cadre est retombé : on réarme pour l'étiquette suivante
-            if (notOkStreakRef.current >= REARM_FRAMES) armedRef.current = true;
-            return;
-          }
-          notOkStreakRef.current = 0;
-          if (Date.now() - lastShotRef.current < COOLDOWN_MS) return;
-          // Même code-barres que la photo précédente : on ne reprend pas le même carton
-          if (code && code === lastBarcodeRef.current) return;
-          // Un nouveau code-barres suffit à réarmer, même sans passage par le rouge
-          if (!armedRef.current && !(code && code !== lastBarcodeRef.current)) return;
-
-          okStreakRef.current += 1;
-          if (okStreakRef.current >= OK_FRAMES_NEEDED) capture(code);
+          // Le cadre vert n'est qu'un indicateur : c'est l'opérateur qui
+          // déclenche. Le déclenchement automatique partait parfois trop tôt,
+          // de trop loin, sur une image que l'analyse jugeait pourtant bonne.
         }, CHECK_INTERVAL);
       } catch (err) {
         if (cancelled) return;
@@ -392,12 +366,12 @@ export default function SeriesCapture({ onClose, onDone, busy }) {
 
         <div className="series-bar">
           <button
-            className="primary"
+            className={`primary series-shoot ${status.ok ? 'shoot-ready' : ''}`}
             onClick={() => capture(barcode)}
             disabled={!!error}
-            title="Forcer la prise si le cadre ne passe pas au vert"
+            title="Le cadre vert indique que l'image est bonne — c'est toi qui déclenches"
           >
-            Prendre quand même
+            📸 Prendre la photo
           </button>
           <button className="ghost" onClick={switchShape} title="Forme de l'étiquette">
             ⟲ {LABEL_SHAPES[shape].label}
@@ -432,7 +406,7 @@ export default function SeriesCapture({ onClose, onDone, busy }) {
         <div className="series-list">
           {items.length === 0 && (
             <p className="series-hint">
-              Vise une étiquette : la photo part toute seule dès que le cadre est vert.
+              Vise une étiquette, attends le cadre vert, puis appuie sur « Prendre la photo ».
             </p>
           )}
           {items.map((item, idx) => (
