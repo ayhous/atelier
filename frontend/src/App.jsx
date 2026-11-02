@@ -57,9 +57,10 @@ export default function App() {
   const handheld = useHandheld();
   const [showSeries, setShowSeries] = useState(false);
   const [seriesBusy, setSeriesBusy] = useState(false);
-  // Prototype : visible uniquement avec ?serie=1 dans l'adresse, pour ne rien
-  // changer à l'app de l'atelier tant qu'il n'est pas validé.
-  const seriesAvailable = new URLSearchParams(window.location.search).has('serie');
+  // Visible sur les appareils tactiles (ceux qui ont une caméra en main).
+  // ?serie=1 force l'affichage sur un PC à webcam, pour les essais.
+  const seriesAvailable = handheld
+    || new URLSearchParams(window.location.search).has('serie');
 
   const isAtelier = user?.role === 'atelier';
   const isAdmin = user?.role === 'admin';
